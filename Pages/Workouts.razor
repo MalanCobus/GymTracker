@@ -49,7 +49,7 @@ else
 
                 <div class="rowx">
                     <button class="btnx ok" @onclick="() => DoWorkoutAsync(d.Id)">▶️ Do workout</button>
-                    <a class="btnx" href="@($"/workouts/{d.Id}")">✏️ Edit</a>
+                    <a class="btnx" href="@($"workouts/{d.Id}")">✏️ Edit</a>
 
                     @if (_pendingDeleteId == d.Id)
                     {
