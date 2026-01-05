@@ -202,45 +202,48 @@ else
                 <button type="button" class="btnx danger" style="padding:10px 12px;" @onclick="CloseAddExerciseModal">✕</button>
             </div>
 
-            @if (!string.IsNullOrWhiteSpace(_modalError))
-            {
-                <div class="cardx" style="box-shadow:none; border-color: color-mix(in oklab, var(--danger), transparent 40%); margin-top: 10px;">
-                    <div class="small">@_modalError</div>
-                </div>
-            }
+            <div class="modal-body">
+                @if (!string.IsNullOrWhiteSpace(_modalError))
+                {
+                    <div class="cardx" style="box-shadow:none; border-color: color-mix(in oklab, var(--danger), transparent 40%);">
+                        <div class="small">@_modalError</div>
+                    </div>
+                }
 
-            <div style="margin-top: 10px;">
-                <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
-                <input class="inputx" placeholder="e.g. Squat" @bind="_newExerciseName" @bind:event="oninput" />
+                <div style="margin-top: 10px;">
+                    <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
+                    <input class="inputx" placeholder="e.g. Squat" @bind="_newExerciseName" @bind:event="oninput" />
+                </div>
+
+                <div class="grid2" style="margin-top: 10px;">
+                    <div>
+                        <label class="small" style="display:block; margin-bottom: 8px;">Sets</label>
+                        <input class="inputx" placeholder="3" type="text" inputmode="numeric" pattern="[0-9]*"
+                               @bind="_newSetsText" @bind:event="oninput" />
+                    </div>
+
+                    <div>
+                        <label class="small" style="display:block; margin-bottom: 8px;">Default reps</label>
+                        <input class="inputx" placeholder="10" type="text" inputmode="numeric" pattern="[0-9]*"
+                               @bind="_newRepsText" @bind:event="oninput" />
+                    </div>
+
+                    <div>
+                        <label class="small" style="display:block; margin-bottom: 8px;">Default weight</label>
+                        <input class="inputx" placeholder="0" type="text" inputmode="decimal"
+                               @bind="_newWeightText" @bind:event="oninput" />
+                    </div>
+                </div>
             </div>
 
-            <div class="grid2" style="margin-top: 10px;">
-                <div>
-                    <label class="small" style="display:block; margin-bottom: 8px;">Sets</label>
-                    <input class="inputx" placeholder="3" type="text" inputmode="numeric" pattern="[0-9]*"
-                           @bind="_newSetsText" @bind:event="oninput" />
-                </div>
-
-                <div>
-                    <label class="small" style="display:block; margin-bottom: 8px;">Default reps</label>
-                    <input class="inputx" placeholder="10" type="text" inputmode="numeric" pattern="[0-9]*"
-                           @bind="_newRepsText" @bind:event="oninput" />
-                </div>
-
-                <div>
-                    <label class="small" style="display:block; margin-bottom: 8px;">Default weight</label>
-                    <input class="inputx" placeholder="0" type="text" inputmode="decimal"
-                           @bind="_newWeightText" @bind:event="oninput" />
-                </div>
-
-                <div class="rowx" style="justify-content:flex-end; align-items:end;">
-                    <button type="button" class="btnx" @onclick="CloseAddExerciseModal">Cancel</button>
-                    <button type="button" class="btnx primary" @onclick="ConfirmAddExercise">Add</button>
-                </div>
+            <div class="modal-footer">
+                <button type="button" class="btnx" @onclick="CloseAddExerciseModal">Cancel</button>
+                <button type="button" class="btnx primary" @onclick="ConfirmAddExercise">Add</button>
             </div>
         </div>
     </div>
 }
+
 
 @code {
     [Parameter] public Guid DefinitionId { get; set; } // Guid.Empty when using /workouts/new

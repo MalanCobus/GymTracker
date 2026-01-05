@@ -389,13 +389,14 @@ hr.sep {
     }
 
 /* --- Modal (Add Exercise) --- */
+/* --- Modal (iPhone-safe) --- */
 .modal-backdrop {
     position: fixed;
     inset: 0;
     z-index: 50;
     background: rgba(0,0,0,.55);
     display: flex;
-    align-items: flex-end;
+    align-items: center; /* center so it fits better */
     justify-content: center;
     padding: 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
@@ -404,11 +405,15 @@ hr.sep {
 .modal-card {
     width: 100%;
     max-width: 720px;
+    /* critical: never exceed viewport */
+    max-height: calc(100vh - 24px - env(safe-area-inset-bottom));
+    overflow: hidden;
     border-radius: 22px;
     background: color-mix(in oklab, var(--bg), white 6%);
     border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
     box-shadow: var(--shadow);
-    padding: 14px;
+    display: flex;
+    flex-direction: column; /* head + scrollable body + footer */
 }
 
 .modal-head {
@@ -416,6 +421,28 @@ hr.sep {
     gap: 10px;
     align-items: center;
     justify-content: space-between;
+    padding: 14px;
+    border-bottom: 1px solid color-mix(in oklab, var(--text), transparent 90%);
+}
+
+.modal-body {
+    padding: 14px;
+    overflow: auto; /* <-- scrolling happens here */
+    -webkit-overflow-scrolling: touch;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 14px;
+    border-top: 1px solid color-mix(in oklab, var(--text), transparent 90%);
+    background: color-mix(in oklab, var(--bg), white 4%);
+    /* keep buttons reachable even when scrolling body */
+    position: sticky;
+    bottom: 0;
+}
+
 }
 
 /* --- Navigation page transition --- */
