@@ -102,12 +102,10 @@ a {
 }
 
 .bottom-tabs-inner {
-    max-width: 980px;
-    margin: 0 auto;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 10px 14px;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
+    align-items: stretch;
 }
 
 .tab {
