@@ -370,3 +370,22 @@ hr.sep {
     font-size: .86rem;
     font-weight: 750;
 }
+
+/* --- Page layout helpers (no overlay action bar) --- */
+.page-stack {
+    min-height: calc(100vh - 56px); /* header approx; fine if not exact */
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+}
+
+/* Bottom actions: normal flow (NOT sticky / NOT fixed) */
+.footer-actions {
+    margin-top: 14px;
+    margin-bottom: 14px;
+}
+
+    /* Optional: keep the nice bar look */
+    .footer-actions .sticky-bar {
+        background: color-mix(in oklab, var(--bg), white 4%);
+    }

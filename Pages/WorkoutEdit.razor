@@ -139,22 +139,19 @@ else
                 </details>
             }
         </div>
-
-        <div style="height: 104px;"></div> @* spacer so content doesn't hide behind sticky bar *@
-
-        <div class="sticky-actions">
-            <div class="sticky-actions-inner">
-                <div class="sticky-bar">
-                    <div style="flex:1;">
-                        <div style="font-weight:850;">Actions</div>
-                        <div class="small">Save updates or start today’s session.</div>
-                    </div>
-
-                    <button type="button" class="btnx ok" @onclick="DoWorkoutAsync">▶️ Do workout</button>
-                    <button type="submit" class="btnx primary">💾 Save</button>
+        <div class="footer-actions">
+            <div class="sticky-bar">
+                <div style="flex:1;">
+                    <div style="font-weight:850;">Actions</div>
+                    <div class="small">Scroll down to save or start today.</div>
                 </div>
+
+                <button type="button" class="btnx ok" @onclick="DoWorkoutAsync">▶️ Do workout</button>
+                <button type="submit" class="btnx primary">💾 Save</button>
             </div>
         </div>
+
+
     </EditForm>
 }
 
