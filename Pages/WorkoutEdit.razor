@@ -7,112 +7,156 @@
 
 <PageTitle>Edit Workout</PageTitle>
 
-<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <h1 style="margin:0;">Edit workout</h1>
-        <div style="flex:1;"></div>
-        <a class="btn btn-outline-secondary" href="/workouts">Back</a>
-        <button class="btn btn-success" @onclick="DoWorkoutAsync" disabled="@(_editing is null)">Do workout</button>
-        <button class="btn btn-primary" type="submit" form="editForm" disabled="@(_editing is null)">Save</button>
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="cardx" style="border-color: color-mix(in oklab, var(--danger), transparent 40%);">
+        <div style="font-weight:850;">Oops</div>
+        <div class="small">@_error</div>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_info))
+{
+    <div class="cardx" style="border-color: color-mix(in oklab, var(--ok), transparent 40%);">
+        <div style="font-weight:850;">@_info</div>
+    </div>
+}
+
+@if (_editing is null)
+{
+    <div class="cardx">
+        <div style="font-weight:850;">Workout not found</div>
+        <div class="small">Go back to Workouts and pick one.</div>
+        <div style="margin-top: 12px;">
+            <a class="btnx" href="/workouts">← Back</a>
+        </div>
+    </div>
+}
+else
+{
+    <div class="rowx" style="justify-content: space-between;">
+        <div>
+            <div class="title">Edit workout</div>
+            <div class="kicker">Build your template (no dates). “Do workout” creates a dated session.</div>
+        </div>
+        <a class="btnx" href="/workouts">← Back</a>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_info))
-    {
-        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">@_info</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">@_error</div>
-    }
+    <EditForm id="editForm" Model="_editing" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-    @if (_editing is null)
-    {
-        <p style="opacity:.8;">Workout not found.</p>
-    }
-    else
-    {
-        <EditForm id="editForm" Model="_editing" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
+        <div class="cardx" style="margin-top: 12px;">
+            <label class="small" style="display:block; margin-bottom: 8px;">Workout name</label>
+            <InputText class="inputx" @bind-Value="_editing.Name" />
+        </div>
 
-            <div style="display:grid; gap: 10px; margin-top: 12px;">
-                <label>
-                    Workout name
-                    <InputText class="form-control" @bind-Value="_editing.Name" />
-                </label>
-
-                <div style="display:flex; gap: 10px; align-items:center;">
-                    <strong>Exercises</strong>
-                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddExercise">+ Add exercise</button>
+        <div class="cardx">
+            <div class="rowx" style="justify-content: space-between;">
+                <div>
+                    <div style="font-weight:850;">Exercises</div>
+                    <div class="small">Tap an exercise to expand sets.</div>
                 </div>
 
-                @foreach (var ex in _editing.Exercises)
-                {
-                    <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;" @key="ex.RowId">
-                        <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
-                            <label style="flex:1; min-width: 240px; margin: 0;">
-                                Exercise name
-                                <input class="form-control" type="text" @bind="ex.Name" @bind:event="oninput" />
-                            </label>
-
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-danger"
-                                    @onclick="() => RemoveExercise(ex.RowId)"
-                                    disabled="@(_editing.Exercises.Count <= 1)">
-                                Remove exercise
-                            </button>
-                        </div>
-
-                        <div style="display:flex; gap: 10px; align-items:center; margin-top: 10px;">
-                            <strong>Sets</strong>
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => AddSet(ex.RowId)">+ Add set</button>
-                        </div>
-
-                        <div class="table-responsive" style="margin-top: 8px;">
-                            <table class="table table-sm align-middle">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 70px;">#</th>
-                                        <th style="width: 180px;">Reps</th>
-                                        <th style="width: 220px;">Weight</th>
-                                        <th style="width: 120px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @{
-                                        var row = 0;
-                                    }
-                                    @foreach (var s in ex.Sets)
-                                    {
-                                        row++;
-                                        <tr @key="s.RowId">
-                                            <td>@row</td>
-                                            <td>
-                                                <input class="form-control" type="text" inputmode="numeric" pattern="[0-9]*"
-                                                       @bind="s.RepsText" @bind:event="oninput" />
-                                            </td>
-                                            <td>
-                                                <input class="form-control" type="text" inputmode="decimal"
-                                                       @bind="s.WeightText" @bind:event="oninput" />
-                                            </td>
-                                            <td class="text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                                        @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                        disabled="@(ex.Sets.Count <= 1)">
-                                                    Remove
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                }
+                <button type="button" class="btnx primary" @onclick="AddExercise">➕ Add</button>
             </div>
-        </EditForm>
-    }
-</div>
+        </div>
+
+        <div class="accordionx" style="margin-top: 12px;">
+            @foreach (var ex in _editing.Exercises)
+            {
+                <details open @key="ex.RowId">
+                    <summary>
+                        <div class="sumrow">
+                            <div class="left">
+                                <div style="font-weight:850;">@(string.IsNullOrWhiteSpace(ex.Name) ? "Exercise" : ex.Name)</div>
+                                <div class="small">@ex.Sets.Count set(s)</div>
+                            </div>
+                            <div class="right">
+                                <button type="button" class="btnx ghost" @onclick="() => AddSet(ex.RowId)">➕ Set</button>
+                                <button type="button"
+                                        class="btnx danger"
+                                        @onclick="() => RemoveExercise(ex.RowId)"
+                                        disabled="@(_editing.Exercises.Count <= 1)">
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    </summary>
+
+                    <div style="margin-top: 10px;">
+                        <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
+                        <input class="inputx"
+                               type="text"
+                               placeholder="e.g. Bench Press"
+                               @bind="ex.Name"
+                               @bind:event="oninput" />
+
+                        <hr class="sep" />
+
+                        <table class="tablex">
+                            <thead>
+                                <tr>
+                                    <th class="num">#</th>
+                                    <th>Reps</th>
+                                    <th>Weight</th>
+                                    <th style="width: 92px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    var row = 0;
+                                }
+                                @foreach (var s in ex.Sets)
+                                {
+                                    row++;
+                                    <tr @key="s.RowId">
+                                        <td class="num">@row</td>
+                                        <td>
+                                            <input class="inputx" style="padding:10px 10px;"
+                                                   type="text" inputmode="numeric" pattern="[0-9]*"
+                                                   @bind="s.RepsText" @bind:event="oninput" />
+                                        </td>
+                                        <td>
+                                            <input class="inputx" style="padding:10px 10px;"
+                                                   type="text" inputmode="decimal"
+                                                   @bind="s.WeightText" @bind:event="oninput" />
+                                        </td>
+                                        <td style="text-align:right;">
+                                            <button type="button"
+                                                    class="btnx danger"
+                                                    style="padding:10px 12px;"
+                                                    @onclick="() => RemoveSet(ex.RowId, s.RowId)"
+                                                    disabled="@(ex.Sets.Count <= 1)">
+                                                ✕
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            }
+        </div>
+
+        <div style="height: 104px;"></div> @* spacer so content doesn't hide behind sticky bar *@
+
+        <div class="sticky-actions">
+            <div class="sticky-actions-inner">
+                <div class="sticky-bar">
+                    <div style="flex:1;">
+                        <div style="font-weight:850;">Actions</div>
+                        <div class="small">Save updates or start today’s session.</div>
+                    </div>
+
+                    <button type="button" class="btnx ok" @onclick="DoWorkoutAsync">▶️ Do workout</button>
+                    <button type="submit" class="btnx primary">💾 Save</button>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
 
 @code {
     [Parameter] public Guid DefinitionId { get; set; }
@@ -202,7 +246,9 @@
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(_editing.DefinitionId, today);
-            Nav.NavigateTo($"/historyItem/{session.Id}");
+
+            // IMPORTANT: route should be /current/{sessionId}
+            Nav.NavigateTo($"/current/{session.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
@@ -264,13 +310,11 @@
             if (string.IsNullOrWhiteSpace(n))
                 throw new ValidationException($"Exercise {exNo}: name is required.");
 
-            var sets = Sets.Select((s, idx) => s.ToModel(exNo, idx + 1)).ToList();
-
             return new WorkoutExercise
             {
                 Id = Guid.NewGuid(),
                 Name = n,
-                Sets = sets
+                Sets = Sets.Select((s, idx) => s.ToModel(exNo, idx + 1)).ToList()
             };
         }
     }

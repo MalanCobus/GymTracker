@@ -1,98 +1,122 @@
-﻿@page "/historyItem/{SessionId:guid}"
+﻿@page "/current/{SessionId:guid}"
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using GymTracker.Models
 @inject GymTracker.Services.WorkoutStore Store
-@inject NavigationManager Nav
 
 <PageTitle>Current workout</PageTitle>
 
-<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-        <h1 style="margin:0;">Current workout</h1>
-        @if (_editing is not null)
-        {
-            <div style="opacity:.75;">@_editing.WorkoutDate.ToString("yyyy-MM-dd")</div>
-        }
-        <div style="flex:1;"></div>
-        <a class="btn btn-outline-secondary" href="/workouts">Workouts</a>
-        <a class="btn btn-outline-secondary" href="/history">History</a>
-        <button class="btn btn-primary" @onclick="SaveAsync" disabled="@(_editing is null)">Save</button>
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="cardx" style="border-color: color-mix(in oklab, var(--danger), transparent 40%);">
+        <div style="font-weight:800;">Oops</div>
+        <div class="small">@_error</div>
+    </div>
+}
+
+@if (_editing is null)
+{
+    <div class="cardx">
+        <div style="font-weight:850;">Session not found</div>
+        <div class="small">Go to History or Workouts and open a session.</div>
+    </div>
+}
+else
+{
+    <div class="rowx" style="justify-content: space-between;">
+        <div>
+            <div class="title">@_editing.NameSnapshot</div>
+            <div class="kicker">@_editing.WorkoutDate.ToString("yyyy-MM-dd")</div>
+        </div>
+        <span class="badge-ok">LIVE</span>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(_info))
-    {
-        <div style="padding:10px;border:1px solid rgba(0,0,0,.2);border-radius:8px;margin:12px 0;">@_info</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div style="padding:10px;border:1px solid #c33;border-radius:8px;margin:12px 0;">@_error</div>
-    }
+    <div class="cardx">
+        <label class="small" style="display:block; margin-bottom:8px;">Workout name (snapshot)</label>
+        <input class="inputx" @bind="_editing.NameSnapshot" />
+    </div>
 
-    @if (_editing is null)
-    {
-        <p style="opacity:.8;">Workout session not found.</p>
-    }
-    else
-    {
-        <EditForm Model="_editing" OnValidSubmit="SaveAsync">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
+    <EditForm Model="_editing" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-            <div style="display:grid; gap:10px; margin-top:12px;">
-                <label>
-                    Workout name
-                    <InputText class="form-control" @bind-Value="_editing.NameSnapshot" />
-                </label>
-
-                @foreach (var ex in _editing.Exercises)
-                {
-                    <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;" @key="ex.RowId">
-                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                            <div style="font-weight:700;">@ex.Name</div>
-                            <div style="flex:1;"></div>
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => AddSet(ex.RowId)">+ Add set</button>
+        <div class="accordionx" style="margin-top: 12px;">
+            @foreach (var ex in _editing.Exercises)
+            {
+                <details open>
+                    <summary>
+                        <div class="sumrow">
+                            <div class="left">
+                                <div style="font-weight:850;">@ex.Name</div>
+                                <div class="small">@ex.Sets.Count set(s)</div>
+                            </div>
+                            <div class="right">
+                                <button type="button" class="btnx ghost" @onclick="() => AddSet(ex.RowId)">➕ Set</button>
+                            </div>
                         </div>
+                    </summary>
 
-                        <div class="table-responsive" style="margin-top: 8px;">
-                            <table class="table table-sm align-middle">
-                                <thead>
-                                    <tr>
-                                        <th style="width:70px;">#</th>
-                                        <th style="width:180px;">Reps</th>
-                                        <th style="width:220px;">Weight</th>
-                                        <th style="width:120px;"></th>
+                    <div style="margin-top: 10px;">
+                        <table class="tablex">
+                            <thead>
+                                <tr>
+                                    <th class="num">#</th>
+                                    <th>Reps</th>
+                                    <th>Weight</th>
+                                    <th style="width: 92px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    var i = 0;
+                                }
+                                @foreach (var s in ex.Sets)
+                                {
+                                    i++;
+                                    <tr @key="s.RowId">
+                                        <td class="num">@i</td>
+                                        <td>
+                                            <input class="inputx" style="padding:10px 10px;"
+                                                   type="text" inputmode="numeric" pattern="[0-9]*"
+                                                   @bind="s.RepsText" @bind:event="oninput" />
+                                        </td>
+                                        <td>
+                                            <input class="inputx" style="padding:10px 10px;"
+                                                   type="text" inputmode="decimal"
+                                                   @bind="s.WeightText" @bind:event="oninput" />
+                                        </td>
+                                        <td style="text-align:right;">
+                                            <button type="button" class="btnx danger"
+                                                    style="padding:10px 12px;"
+                                                    @onclick="() => RemoveSet(ex.RowId, s.RowId)"
+                                                    disabled="@(ex.Sets.Count <= 1)">
+                                                ✕
+                                            </button>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    @{
-                                        var row = 0;
-                                    }
-                                    @foreach (var s in ex.Sets)
-                                    {
-                                        row++;
-                                        <tr @key="s.RowId">
-                                            <td>@row</td>
-                                            <td><input class="form-control" type="text" inputmode="numeric" pattern="[0-9]*" @bind="s.RepsText" @bind:event="oninput" /></td>
-                                            <td><input class="form-control" type="text" inputmode="decimal" @bind="s.WeightText" @bind:event="oninput" /></td>
-                                            <td class="text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-danger"
-                                                        @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                        disabled="@(ex.Sets.Count <= 1)">
-                                                    Remove
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                                }
+                            </tbody>
+                        </table>
                     </div>
-                }
+                </details>
+            }
+        </div>
+
+        <div style="height: 84px;"></div> @* spacer so content doesn't hide behind sticky bar *@
+
+        <div class="sticky-actions">
+            <div class="sticky-actions-inner">
+                <div class="sticky-bar">
+                    <div style="flex:1;">
+                        <div style="font-weight:850;">Save progress</div>
+                        <div class="small">This stays on your phone.</div>
+                    </div>
+                    <button type="submit" class="btnx primary">💾 Save</button>
+                </div>
             </div>
-        </EditForm>
-    }
-</div>
+        </div>
+    </EditForm>
+}
 
 @code {
     [Parameter] public Guid SessionId { get; set; }
@@ -115,7 +139,6 @@
     private void AddSet(Guid exRowId)
     {
         if (_editing is null) return;
-
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
 
@@ -131,7 +154,6 @@
     private void RemoveSet(Guid exRowId, Guid setRowId)
     {
         if (_editing is null) return;
-
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
         if (ex.Sets.Count <= 1) return;
@@ -141,14 +163,13 @@
 
     private async Task SaveAsync()
     {
-        _error = null; _info = null;
+        _error = null;
         if (_editing is null) return;
 
         try
         {
             var updated = _editing.ToModel();
             await Store.UpdateSessionAsync(updated);
-            _info = "Saved.";
         }
         catch (ValidationException vex) { _error = vex.Message; }
         catch (Exception ex) { _error = ex.Message; }
@@ -182,15 +203,13 @@
             if (string.IsNullOrWhiteSpace(name))
                 throw new ValidationException("Workout name is required.");
 
-            var ex = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList();
-
             return new WorkoutSession
             {
                 Id = SessionId,
                 DefinitionId = DefinitionId,
                 NameSnapshot = name,
                 WorkoutDate = WorkoutDate,
-                Exercises = ex
+                Exercises = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList()
             };
         }
     }
@@ -210,16 +229,12 @@
             };
 
         public WorkoutExercise ToModel(int exNo)
-        {
-            var sets = Sets.Select((s, idx) => s.ToModel(exNo, idx + 1)).ToList();
-
-            return new WorkoutExercise
+            => new()
             {
                 Id = Guid.NewGuid(),
                 Name = Name,
-                Sets = sets
+                Sets = Sets.Select((s, idx) => s.ToModel(exNo, idx + 1)).ToList()
             };
-        }
     }
 
     private sealed class SetEditModel

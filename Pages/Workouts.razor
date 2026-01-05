@@ -1,70 +1,80 @@
 ﻿@page "/workouts"
-@using System.ComponentModel.DataAnnotations
-@using System.Globalization
 @using GymTracker.Models
 @inject GymTracker.Services.WorkoutStore Store
 @inject NavigationManager Nav
 
 <PageTitle>Workouts</PageTitle>
 
-<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
-    <h1 style="margin-bottom: 6px;">Workouts</h1>
-    <p style="margin-top: 0; opacity: 0.8;">Saved workouts (no dates). Use “Do workout” to create history.</p>
-
-    @if (!string.IsNullOrWhiteSpace(_info))
-    {
-        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">@_info</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">@_error</div>
-    }
-
-    <div style="display:flex; gap: 12px; align-items:end; flex-wrap: wrap;">
-        <label style="min-width: 260px;">
-            New workout name
-            <InputText class="form-control" @bind-Value="_newName" />
-        </label>
-
-        <button class="btn btn-primary" @onclick="CreateAsync">+ Create</button>
+<div class="rowx" style="justify-content: space-between;">
+    <div>
+        <div class="title">Workouts</div>
+        <div class="kicker">Saved workouts. Tap “Do workout” to log a session.</div>
     </div>
+</div>
 
-    <hr />
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="cardx" style="border-color: color-mix(in oklab, var(--danger), transparent 40%);">
+        <div style="font-weight:800;">Oops</div>
+        <div class="small">@_error</div>
+    </div>
+}
 
-    @if (Store.Definitions.Count == 0)
+<div class="cardx">
+    <div class="grid2">
+        <input class="inputx" placeholder="Search workout…" @bind="_query" @bind:event="oninput" />
+        <div class="rowx" style="justify-content:flex-end;">
+            <button class="btnx primary" @onclick="CreateAsync">➕ Create</button>
+        </div>
+    </div>
+</div>
+
+@if (Filtered.Count == 0)
+{
+    <div class="cardx">
+        <div style="font-weight:800;">No workouts</div>
+        <div class="small">Create one, then reuse it forever.</div>
+    </div>
+}
+else
+{
+    @foreach (var d in Filtered)
     {
-        <p style="opacity:.8;">No workouts yet.</p>
-    }
-    else
-    {
-        <div style="display:grid; gap: 10px;">
-            @foreach (var d in Store.Definitions.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;">
-                    <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
-                        <div style="font-weight:700; font-size:1.05em;">@d.Name</div>
-                        <div style="opacity:.75;">(@d.Exercises.Count exercise(s))</div>
-
-                        <div style="flex:1;"></div>
-
-                        <button class="btn btn-sm btn-success" @onclick="() => DoWorkoutAsync(d.Id)">Do workout</button>
-                        <a class="btn btn-sm btn-outline-primary" href="@($"/workouts/{d.Id}")">Edit</a>
-                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(d.Id)">Delete</button>
-                    </div>
-
-                    <div style="opacity:.85; margin-top: 6px;">
-                        @string.Join(" · ", d.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"))
-                    </div>
+        <div class="cardx">
+            <div class="rowx" style="justify-content: space-between;">
+                <div style="min-width: 200px;">
+                    <div style="font-weight:850; font-size: 1.08rem;">@d.Name</div>
+                    <div class="small">@string.Join(" · ", d.Exercises.Select(e => e.Name))</div>
                 </div>
-            }
+
+                <div class="rowx">
+                    <button class="btnx ok" @onclick="() => DoWorkoutAsync(d.Id)">▶️ Do workout</button>
+                    <a class="btnx" href="@($"/workouts/{d.Id}")">✏️ Edit</a>
+                </div>
+            </div>
+
+            <hr class="sep" />
+
+            <div class="rowx">
+                <span class="pill">Exercises: @d.Exercises.Count</span>
+                <span class="pill">Sets: @d.Exercises.Sum(e => e.Sets.Count)</span>
+            </div>
         </div>
     }
-</div>
+}
 
 @code {
     private string? _error;
-    private string? _info;
-    private string? _newName;
+    private string _query = "";
+
+    private IReadOnlyList<WorkoutDefinition> Filtered
+        => Store.Definitions
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(d =>
+                string.IsNullOrWhiteSpace(_query)
+                || d.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                || d.Exercises.Any(e => e.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,12 +83,10 @@
 
     private async Task CreateAsync()
     {
-        _error = null; _info = null;
-
+        _error = null;
         try
         {
-            var d = await Store.CreateDefinitionAsync(_newName ?? "Workout");
-            _newName = null;
+            var d = await Store.CreateDefinitionAsync("Workout");
             Nav.NavigateTo($"/workouts/{d.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
@@ -86,25 +94,12 @@
 
     private async Task DoWorkoutAsync(Guid definitionId)
     {
-        _error = null; _info = null;
-
+        _error = null;
         try
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(definitionId, today);
-            Nav.NavigateTo($"/historyItem/{session.Id}");
-        }
-        catch (Exception ex) { _error = ex.Message; }
-    }
-
-    private async Task DeleteAsync(Guid definitionId)
-    {
-        _error = null; _info = null;
-
-        try
-        {
-            await Store.DeleteDefinitionAsync(definitionId);
-            _info = "Deleted.";
+            Nav.NavigateTo($"/current/{session.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }

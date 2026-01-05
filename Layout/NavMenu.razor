@@ -1,35 +1,30 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">GymTracker</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+﻿@inject NavigationManager Nav
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/workouts">
-                <span aria-hidden="true">📌</span> Workouts
-            </NavLink>
-            <NavLink class="nav-link" href="/data">
-                <span aria-hidden="true">📌</span> Data
-            </NavLink>
-            <NavLink class="nav-link" href="/history">
-                <span aria-hidden="true">📌</span> History
-            </NavLink>
+<div class="bottom-tabs-inner">
+    <a class="@TabClass("/workouts")" href="/workouts">
+        <div class="tab @TabActive("/workouts")">
+            <div class="emoji">🏋️</div>
+            <div class="label">Workouts</div>
         </div>
-    </nav>
+    </a>
+
+    <a class="@TabClass("/history")" href="/history">
+        <div class="tab @TabActive("/history")">
+            <div class="emoji">📅</div>
+            <div class="label">History</div>
+        </div>
+    </a>
 </div>
 
 @code {
-    private bool collapseNavMenu = true;
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
+    private string TabActive(string route)
     {
-        collapseNavMenu = !collapseNavMenu;
+        var r = route.TrimEnd('/');
+        if (r == "") r = "/";
+        return CurrentPath == r ? "active" : "";
     }
+
+    private string TabClass(string route) => "tablink";
 }
