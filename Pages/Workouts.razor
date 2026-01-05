@@ -8,14 +8,14 @@
 <div class="rowx" style="justify-content: space-between;">
     <div>
         <div class="title">Workouts</div>
-        <div class="kicker">Saved workouts. Tap “Do workout” to log a session.</div>
+        <div class="kicker">Saved workouts (no dates). Tap “Do workout” to log a session.</div>
     </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(_error))
 {
     <div class="cardx" style="border-color: color-mix(in oklab, var(--danger), transparent 40%);">
-        <div style="font-weight:800;">Oops</div>
+        <div style="font-weight:850;">Oops</div>
         <div class="small">@_error</div>
     </div>
 }
@@ -32,7 +32,7 @@
 @if (Filtered.Count == 0)
 {
     <div class="cardx">
-        <div style="font-weight:800;">No workouts</div>
+        <div style="font-weight:850;">No workouts</div>
         <div class="small">Create one, then reuse it forever.</div>
     </div>
 }
@@ -49,7 +49,17 @@ else
 
                 <div class="rowx">
                     <button class="btnx ok" @onclick="() => DoWorkoutAsync(d.Id)">▶️ Do workout</button>
-                    <a class="btnx" href="@($"workouts/{d.Id}")">✏️ Edit</a>
+                    <a class="btnx" href="@($"/workouts/{d.Id}")">✏️ Edit</a>
+
+                    @if (_pendingDeleteId == d.Id)
+                    {
+                        <button class="btnx danger" @onclick="() => ConfirmDeleteAsync(d.Id)">Delete</button>
+                        <button class="btnx" @onclick="CancelDelete">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="btnx danger" @onclick="() => AskDelete(d.Id)">🗑️</button>
+                    }
                 </div>
             </div>
 
@@ -59,6 +69,13 @@ else
                 <span class="pill">Exercises: @d.Exercises.Count</span>
                 <span class="pill">Sets: @d.Exercises.Sum(e => e.Sets.Count)</span>
             </div>
+
+            @if (_pendingDeleteId == d.Id)
+            {
+                <div style="margin-top: 10px;" class="small">
+                    This deletes the saved workout. Your history stays (unless you want it removed too).
+                </div>
+            }
         </div>
     }
 }
@@ -66,6 +83,7 @@ else
 @code {
     private string? _error;
     private string _query = "";
+    private Guid? _pendingDeleteId;
 
     private IReadOnlyList<WorkoutDefinition> Filtered
         => Store.Definitions
@@ -87,7 +105,7 @@ else
         try
         {
             var d = await Store.CreateDefinitionAsync("Workout");
-            Nav.NavigateTo($"workouts/{d.Id}");
+            Nav.NavigateTo($"/workouts/{d.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
@@ -99,7 +117,21 @@ else
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(definitionId, today);
-            Nav.NavigateTo($"current/{session.Id}");
+            Nav.NavigateTo($"/current/{session.Id}");
+        }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private void AskDelete(Guid id) => _pendingDeleteId = id;
+    private void CancelDelete() => _pendingDeleteId = null;
+
+    private async Task ConfirmDeleteAsync(Guid id)
+    {
+        _error = null;
+        try
+        {
+            await Store.DeleteDefinitionAsync(id);
+            _pendingDeleteId = null;
         }
         catch (Exception ex) { _error = ex.Message; }
     }
