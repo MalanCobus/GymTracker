@@ -1,4 +1,5 @@
-﻿@page "/workouts/{DefinitionId:guid}"
+﻿@page "/workouts/new"
+@page "/workouts/{DefinitionId:guid}"
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using GymTracker.Models
@@ -36,8 +37,8 @@ else
 {
     <div class="rowx" style="justify-content: space-between;">
         <div>
-            <div class="title">Edit workout</div>
-            <div class="kicker">Build your template (no dates). “Do workout” creates a dated session.</div>
+            <div class="title">@(_isNew ? "New workout" : "Edit workout")</div>
+            <div class="kicker">Only saved when you press Save.</div>
         </div>
         <a class="btnx" href="workouts">← Back</a>
     </div>
@@ -48,136 +49,227 @@ else
 
         <div class="cardx" style="margin-top: 12px;">
             <label class="small" style="display:block; margin-bottom: 8px;">Workout name</label>
-            <InputText class="inputx" @bind-Value="_editing.Name" />
+            <InputText class="inputx" placeholder="e.g. Push Day" @bind-Value="_editing.Name" />
         </div>
 
-        <div class="cardx">
-            <div class="rowx" style="justify-content: space-between;">
-                <div>
-                    <div style="font-weight:850;">Exercises</div>
-                    <div class="small">Tap an exercise to expand sets.</div>
-                </div>
-
-                <button type="button" class="btnx primary" @onclick="AddExercise">➕ Add</button>
+        <div class="rowx" style="justify-content: space-between; margin-top: 12px;">
+            <div>
+                <div style="font-weight:850;">Exercises</div>
+                <div class="small">Add exercises, then expand to edit sets.</div>
             </div>
+            <button type="button" class="btnx primary" @onclick="OpenAddExerciseModal">➕ Add exercise</button>
         </div>
 
-        <div class="accordionx" style="margin-top: 12px;">
-            @foreach (var ex in _editing.Exercises)
-            {
-                <details open @key="ex.RowId">
-                    <summary>
-                        <div class="sumrow">
-                            <div class="left">
-                                <div style="font-weight:850;">
-                                    @(string.IsNullOrWhiteSpace(ex.Name) ? "Exercise" : ex.Name)
+        @if (_editing.Exercises.Count == 0)
+        {
+            <div class="cardx">
+                <div style="font-weight:850;">No exercises yet</div>
+                <div class="small">Tap “Add exercise” to start building this workout.</div>
+            </div>
+        }
+        else
+        {
+            <div class="accordionx" style="margin-top: 10px;">
+                @foreach (var ex in _editing.Exercises)
+                {
+                    <details @key="ex.RowId">
+                        <summary>
+                            <div class="sumrow">
+                                <div class="left">
+                                    <div style="font-weight:850;">
+                                        @(string.IsNullOrWhiteSpace(ex.Name) ? "Untitled exercise" : ex.Name)
+                                    </div>
+                                    <div class="small">@ex.Sets.Count set(s)</div>
                                 </div>
-                                <div class="small">@ex.Sets.Count set(s)</div>
-                            </div>
 
-                            <div class="right">
-                                <button type="button"
-                                        class="btnx ghost"
-                                        @onclick="() => AddSet(ex.RowId)"
-                                        @onclick:stopPropagation="true"
-                                        @onclick:preventDefault="true">
-                                    ➕ Set
-                                </button>
+                                <div class="right">
+                                    <button type="button"
+                                            class="btnx ghost"
+                                            @onclick="() => AddSet(ex.RowId)"
+                                            @onclick:stopPropagation="true"
+                                            @onclick:preventDefault="true">
+                                        ➕ Set
+                                    </button>
 
-                                <button type="button"
-                                        class="btnx danger"
-                                        @onclick="() => RemoveExercise(ex.RowId)"
-                                        @onclick:stopPropagation="true"
-                                        @onclick:preventDefault="true"
-                                        disabled="@(_editing.Exercises.Count <= 1)">
-                                    ✕
-                                </button>
+                                    <button type="button"
+                                            class="btnx danger"
+                                            @onclick="() => RemoveExercise(ex.RowId)"
+                                            @onclick:stopPropagation="true"
+                                            @onclick:preventDefault="true">
+                                        ✕
+                                    </button>
+                                </div>
                             </div>
+                        </summary>
+
+                        <div style="margin-top: 10px;">
+                            <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
+                            <input class="inputx"
+                                   type="text"
+                                   placeholder="e.g. Bench Press"
+                                   @bind="ex.Name"
+                                   @bind:event="oninput" />
+
+                            <hr class="sep" />
+
+                            @if (ex.Sets.Count == 0)
+                            {
+                                <div class="cardx" style="box-shadow:none;">
+                                    <div style="font-weight:850;">No sets yet</div>
+                                    <div class="small">Tap “+ Set”. Blank reps/weight defaults to 10 and 0 on save.</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <table class="tablex">
+                                    <thead>
+                                        <tr>
+                                            <th class="num">#</th>
+                                            <th>Reps</th>
+                                            <th>Weight</th>
+                                            <th style="width: 92px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @{
+                                            var row = 0;
+                                        }
+                                        @foreach (var s in ex.Sets)
+                                        {
+                                            row++;
+                                            <tr @key="s.RowId">
+                                                <td class="num">@row</td>
+                                                <td>
+                                                    <input class="inputx" style="padding:10px 10px;"
+                                                           type="text" inputmode="numeric" pattern="[0-9]*"
+                                                           placeholder="10"
+                                                           @bind="s.RepsText" @bind:event="oninput" />
+                                                </td>
+                                                <td>
+                                                    <input class="inputx" style="padding:10px 10px;"
+                                                           type="text" inputmode="decimal"
+                                                           placeholder="0"
+                                                           @bind="s.WeightText" @bind:event="oninput" />
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <button type="button"
+                                                            class="btnx danger"
+                                                            style="padding:10px 12px;"
+                                                            @onclick="() => RemoveSet(ex.RowId, s.RowId)"
+                                                            disabled="@(ex.Sets.Count <= 1)">
+                                                        ✕
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
                         </div>
-                    </summary>
-
-                    <div style="margin-top: 10px;">
-                        <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
-                        <input class="inputx"
-                               type="text"
-                               placeholder="e.g. Bench Press"
-                               @bind="ex.Name"
-                               @bind:event="oninput" />
-
-                        <hr class="sep" />
-
-                        <table class="tablex">
-                            <thead>
-                                <tr>
-                                    <th class="num">#</th>
-                                    <th>Reps</th>
-                                    <th>Weight</th>
-                                    <th style="width: 92px;"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @{
-                                    var row = 0;
-                                }
-                                @foreach (var s in ex.Sets)
-                                {
-                                    row++;
-                                    <tr @key="s.RowId">
-                                        <td class="num">@row</td>
-                                        <td>
-                                            <input class="inputx" style="padding:10px 10px;"
-                                                   type="text" inputmode="numeric" pattern="[0-9]*"
-                                                   @bind="s.RepsText" @bind:event="oninput" />
-                                        </td>
-                                        <td>
-                                            <input class="inputx" style="padding:10px 10px;"
-                                                   type="text" inputmode="decimal"
-                                                   @bind="s.WeightText" @bind:event="oninput" />
-                                        </td>
-                                        <td style="text-align:right;">
-                                            <button type="button"
-                                                    class="btnx danger"
-                                                    style="padding:10px 12px;"
-                                                    @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                    disabled="@(ex.Sets.Count <= 1)">
-                                                ✕
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </details>
-            }
-        </div>
+                    </details>
+                }
+            </div>
+        }
 
         <div class="footer-actions">
             <div class="sticky-bar">
                 <div style="flex:1;">
                     <div style="font-weight:850;">Actions</div>
+                    <div class="small">@(_isNew ? "Save first, then you can start the workout." : "Scroll down to save or start today.")</div>
                 </div>
 
-                <button type="button" class="btnx ok" @onclick="DoWorkoutAsync">▶️ Do workout</button>
+                <button type="button" class="btnx ok" @onclick="DoWorkoutAsync" disabled="@_isNew">▶️ Do workout</button>
                 <button type="submit" class="btnx primary">💾 Save</button>
             </div>
         </div>
-
-
     </EditForm>
 }
 
+@if (_showAddExerciseModal)
+{
+    <div class="modal-backdrop" @onclick="CloseAddExerciseModal">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <div>
+                    <div style="font-weight:900;">Add exercise</div>
+                    <div class="small">Leave reps/weight blank to default to 10 and 0.</div>
+                </div>
+                <button type="button" class="btnx danger" style="padding:10px 12px;" @onclick="CloseAddExerciseModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_modalError))
+            {
+                <div class="cardx" style="box-shadow:none; border-color: color-mix(in oklab, var(--danger), transparent 40%); margin-top: 10px;">
+                    <div class="small">@_modalError</div>
+                </div>
+            }
+
+            <div style="margin-top: 10px;">
+                <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
+                <input class="inputx" placeholder="e.g. Squat" @bind="_newExerciseName" @bind:event="oninput" />
+            </div>
+
+            <div class="grid2" style="margin-top: 10px;">
+                <div>
+                    <label class="small" style="display:block; margin-bottom: 8px;">Sets</label>
+                    <input class="inputx" placeholder="3" type="text" inputmode="numeric" pattern="[0-9]*"
+                           @bind="_newSetsText" @bind:event="oninput" />
+                </div>
+
+                <div>
+                    <label class="small" style="display:block; margin-bottom: 8px;">Default reps</label>
+                    <input class="inputx" placeholder="10" type="text" inputmode="numeric" pattern="[0-9]*"
+                           @bind="_newRepsText" @bind:event="oninput" />
+                </div>
+
+                <div>
+                    <label class="small" style="display:block; margin-bottom: 8px;">Default weight</label>
+                    <input class="inputx" placeholder="0" type="text" inputmode="decimal"
+                           @bind="_newWeightText" @bind:event="oninput" />
+                </div>
+
+                <div class="rowx" style="justify-content:flex-end; align-items:end;">
+                    <button type="button" class="btnx" @onclick="CloseAddExerciseModal">Cancel</button>
+                    <button type="button" class="btnx primary" @onclick="ConfirmAddExercise">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    [Parameter] public Guid DefinitionId { get; set; }
+    [Parameter] public Guid DefinitionId { get; set; } // Guid.Empty when using /workouts/new
 
     private string? _error;
     private string? _info;
 
+    private bool _isNew;
     private DefinitionEditModel? _editing;
+
+    private bool _showAddExerciseModal;
+    private string? _modalError;
+
+    private string _newExerciseName = "";
+    private string _newSetsText = "";
+    private string _newRepsText = "";
+    private string _newWeightText = "";
 
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
+
+        _isNew = DefinitionId == Guid.Empty;
+
+        if (_isNew)
+        {
+            _editing = new DefinitionEditModel
+            {
+                DefinitionId = Guid.Empty,
+                Name = "",
+                Exercises = new List<ExerciseEditModel>()
+            };
+            return;
+        }
 
         var d = Store.GetDefinition(DefinitionId);
         if (d is null) return;
@@ -185,29 +277,86 @@ else
         _editing = DefinitionEditModel.FromModel(d);
     }
 
-    private void AddExercise()
+    private void OpenAddExerciseModal()
+    {
+        _modalError = null;
+        _newExerciseName = "";
+        _newSetsText = "";
+        _newRepsText = "";
+        _newWeightText = "";
+        _showAddExerciseModal = true;
+    }
+
+    private void CloseAddExerciseModal()
+    {
+        _showAddExerciseModal = false;
+        _modalError = null;
+    }
+
+    private void ConfirmAddExercise()
     {
         if (_editing is null) return;
+
+        _modalError = null;
+
+        var name = (_newExerciseName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            _modalError = "Exercise name is required.";
+            return;
+        }
+
+        var setsCount = ParseOrDefaultInt(_newSetsText, 3);
+        if (setsCount < 1 || setsCount > 20)
+        {
+            _modalError = "Sets must be between 1 and 20.";
+            return;
+        }
+
+        var reps = ParseOrDefaultInt(_newRepsText, 10);
+        if (reps < 0 || reps > 500)
+        {
+            _modalError = "Default reps must be 0–500.";
+            return;
+        }
+
+        var weight = ParseOrDefaultDecimal(_newWeightText, 0m);
+        if (weight < 0 || weight > 2000)
+        {
+            _modalError = "Default weight must be 0–2000.";
+            return;
+        }
+
+        var sets = new List<SetEditModel>(setsCount);
+        for (var i = 0; i < setsCount; i++)
+        {
+            sets.Add(new SetEditModel
+            {
+                RowId = Guid.NewGuid(),
+                RepsText = string.IsNullOrWhiteSpace(_newRepsText) ? "" : reps.ToString(CultureInfo.InvariantCulture),
+                WeightText = string.IsNullOrWhiteSpace(_newWeightText) ? "" : weight.ToString(CultureInfo.InvariantCulture)
+            });
+        }
 
         _editing.Exercises.Add(new ExerciseEditModel
         {
             RowId = Guid.NewGuid(),
-            Name = "",
-            Sets = new List<SetEditModel> { new() }
+            Name = name,
+            Sets = sets
         });
+
+        _showAddExerciseModal = false;
     }
 
     private void RemoveExercise(Guid rowId)
     {
         if (_editing is null) return;
-        if (_editing.Exercises.Count <= 1) return;
         _editing.Exercises.RemoveAll(e => e.RowId == rowId);
     }
 
     private void AddSet(Guid exRowId)
     {
         if (_editing is null) return;
-
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
 
@@ -215,32 +364,43 @@ else
         ex.Sets.Add(new SetEditModel
         {
             RowId = Guid.NewGuid(),
-            RepsText = last?.RepsText ?? "10",
-            WeightText = last?.WeightText ?? "0"
+            RepsText = last?.RepsText ?? "",
+            WeightText = last?.WeightText ?? ""
         });
     }
 
     private void RemoveSet(Guid exRowId, Guid setRowId)
     {
         if (_editing is null) return;
-
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
         if (ex.Sets.Count <= 1) return;
-
         ex.Sets.RemoveAll(s => s.RowId == setRowId);
     }
 
     private async Task SaveAsync()
     {
-        _error = null; _info = null;
+        _error = null;
+        _info = null;
         if (_editing is null) return;
 
         try
         {
-            var updated = _editing.ToModel();
-            await Store.UpdateDefinitionAsync(updated);
+            var def = _editing.ToModel();
+
+            // IMPORTANT: Upsert = creates only here, when user clicks Save
+            var saved = await Store.UpsertDefinitionAsync(def);
+
             _info = "Saved.";
+
+            if (_isNew)
+            {
+                _isNew = false;
+                DefinitionId = saved.Id;
+
+                // Replace URL so refresh/back works cleanly
+                Nav.NavigateTo($"workouts/{saved.Id}", replace: true);
+            }
         }
         catch (ValidationException vex) { _error = vex.Message; }
         catch (Exception ex) { _error = ex.Message; }
@@ -248,35 +408,46 @@ else
 
     private async Task DoWorkoutAsync()
     {
-        _error = null; _info = null;
+        _error = null;
+        _info = null;
+
+        if (_isNew)
+        {
+            _error = "Save the workout first.";
+            return;
+        }
+
         if (_editing is null) return;
 
         try
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(_editing.DefinitionId, today);
-
-            // IMPORTANT: route should be /current/{sessionId}
             Nav.NavigateTo($"current/{session.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
 
+    private static int ParseOrDefaultInt(string? text, int fallback)
+        => int.TryParse((text ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+    private static decimal ParseOrDefaultDecimal(string? text, decimal fallback)
+    {
+        var t = (text ?? "").Trim().Replace(',', '.');
+        return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+    }
+
     private sealed class DefinitionEditModel
     {
         public Guid DefinitionId { get; set; }
-
-        [Required, StringLength(80)]
-        public string Name { get; set; } = "Workout";
-
-        [MinLength(1)]
+        public string Name { get; set; } = "";
         public List<ExerciseEditModel> Exercises { get; set; } = new();
 
         public static DefinitionEditModel FromModel(WorkoutDefinition d)
             => new()
             {
                 DefinitionId = d.Id,
-                Name = d.Name,
+                Name = d.Name ?? "",
                 Exercises = d.Exercises.Select(ExerciseEditModel.FromModel).ToList()
             };
 
@@ -286,15 +457,14 @@ else
             if (string.IsNullOrWhiteSpace(name))
                 throw new ValidationException("Workout name is required.");
 
-            var ex = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList();
-            if (ex.Count == 0)
+            if (Exercises.Count == 0)
                 throw new ValidationException("Add at least one exercise.");
 
             return new WorkoutDefinition
             {
-                Id = DefinitionId,
+                Id = DefinitionId, // Guid.Empty is allowed for new (store will assign)
                 Name = name,
-                Exercises = ex
+                Exercises = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList()
             };
         }
     }
@@ -303,13 +473,13 @@ else
     {
         public Guid RowId { get; set; } = Guid.NewGuid();
         public string Name { get; set; } = "";
-        public List<SetEditModel> Sets { get; set; } = new() { new SetEditModel() };
+        public List<SetEditModel> Sets { get; set; } = new();
 
         public static ExerciseEditModel FromModel(WorkoutExercise e)
             => new()
             {
                 RowId = Guid.NewGuid(),
-                Name = e.Name,
+                Name = e.Name ?? "",
                 Sets = e.Sets.Select(SetEditModel.FromModel).ToList()
             };
 
@@ -318,6 +488,9 @@ else
             var n = (Name ?? "").Trim();
             if (string.IsNullOrWhiteSpace(n))
                 throw new ValidationException($"Exercise {exNo}: name is required.");
+
+            if (Sets.Count == 0)
+                throw new ValidationException($"Exercise {exNo}: add at least one set.");
 
             return new WorkoutExercise
             {
@@ -331,8 +504,8 @@ else
     private sealed class SetEditModel
     {
         public Guid RowId { get; set; } = Guid.NewGuid();
-        public string RepsText { get; set; } = "10";
-        public string WeightText { get; set; } = "0";
+        public string RepsText { get; set; } = "";
+        public string WeightText { get; set; } = "";
 
         public static SetEditModel FromModel(ExerciseSet s)
             => new()
@@ -344,14 +517,22 @@ else
 
         public ExerciseSet ToModel(int exNo, int setNo)
         {
-            if (!int.TryParse((RepsText ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var reps))
-                throw new ValidationException($"Exercise {exNo}, set {setNo}: reps must be a whole number.");
-
-            var w = (WeightText ?? "").Trim().Replace(',', '.');
-            if (!decimal.TryParse(w, NumberStyles.Number, CultureInfo.InvariantCulture, out var weight))
-                throw new ValidationException($"Exercise {exNo}, set {setNo}: weight must be a number.");
-
+            var reps = string.IsNullOrWhiteSpace(RepsText) ? 10 : ParseInt(RepsText, $"Exercise {exNo}, set {setNo}: reps must be a whole number.");
+            var weight = string.IsNullOrWhiteSpace(WeightText) ? 0m : ParseDecimal(WeightText, $"Exercise {exNo}, set {setNo}: weight must be a number.");
             return new ExerciseSet { Reps = reps, Weight = weight };
+        }
+
+        private static int ParseInt(string text, string err)
+            => int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)
+                ? v
+                : throw new ValidationException(err);
+
+        private static decimal ParseDecimal(string text, string err)
+        {
+            var t = text.Trim().Replace(',', '.');
+            return decimal.TryParse(t, NumberStyles.Number, CultureInfo.InvariantCulture, out var v)
+                ? v
+                : throw new ValidationException(err);
         }
     }
 }

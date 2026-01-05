@@ -8,7 +8,7 @@
 <div class="rowx" style="justify-content: space-between;">
     <div>
         <div class="title">Workouts</div>
-        <div class="kicker">Saved workouts (no dates). Tap “Do workout” to log a session.</div>
+        <div class="kicker">Saved workouts. “Create” opens a draft — only saved when you press Save.</div>
     </div>
 </div>
 
@@ -24,7 +24,7 @@
     <div class="grid2">
         <input class="inputx" placeholder="Search workout…" @bind="_query" @bind:event="oninput" />
         <div class="rowx" style="justify-content:flex-end;">
-            <button class="btnx primary" @onclick="CreateAsync">➕ Create</button>
+            <button class="btnx primary" @onclick="Create">➕ Create</button>
         </div>
     </div>
 </div>
@@ -43,12 +43,23 @@ else
         <div class="cardx">
             <div class="rowx" style="justify-content: space-between;">
                 <div style="min-width: 200px;">
-                    <div style="font-weight:850; font-size: 1.08rem;">@d.Name</div>
-                    <div class="small">@string.Join(" · ", d.Exercises.Select(e => e.Name))</div>
+                    <div style="font-weight:850; font-size: 1.08rem;">
+                        @DisplayName(d.Name)
+                    </div>
+                    <div class="small">
+                        @(d.Exercises.Count == 0
+                                        ? "No exercises yet"
+                                        : string.Join(" · ", d.Exercises.Select(e => string.IsNullOrWhiteSpace(e.Name) ? "Exercise" : e.Name)))
+                    </div>
                 </div>
 
                 <div class="rowx">
-                    <button class="btnx ok" @onclick="() => DoWorkoutAsync(d.Id)">▶️ Do workout</button>
+                    <button class="btnx ok"
+                            @onclick="() => DoWorkoutAsync(d.Id)"
+                            disabled="@(d.Exercises.Count == 0)">
+                        ▶️ Do workout
+                    </button>
+
                     <a class="btnx" href="@($"workouts/{d.Id}")">✏️ Edit</a>
 
                     @if (_pendingDeleteId == d.Id)
@@ -73,7 +84,14 @@ else
             @if (_pendingDeleteId == d.Id)
             {
                 <div style="margin-top: 10px;" class="small">
-                    This deletes the saved workout. Your history stays (unless you want it removed too).
+                    Deletes this saved workout. Your history sessions stay.
+                </div>
+            }
+
+            @if (d.Exercises.Count == 0)
+            {
+                <div style="margin-top: 10px;" class="small">
+                    Add at least 1 exercise before starting a workout.
                 </div>
             }
         </div>
@@ -85,30 +103,25 @@ else
     private string _query = "";
     private Guid? _pendingDeleteId;
 
-    private IReadOnlyList<WorkoutDefinition> Filtered
-        => Store.Definitions
-            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Where(d =>
-                string.IsNullOrWhiteSpace(_query)
-                || d.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
-                || d.Exercises.Any(e => e.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
     }
 
-    private async Task CreateAsync()
-    {
-        _error = null;
-        try
-        {
-            var d = await Store.CreateDefinitionAsync("Workout");
-            Nav.NavigateTo($"workouts/{d.Id}");
-        }
-        catch (Exception ex) { _error = ex.Message; }
-    }
+    private IReadOnlyList<WorkoutDefinition> Filtered
+        => Store.Definitions
+            .OrderBy(x => string.IsNullOrWhiteSpace(x.Name) ? "zzz" : x.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(d =>
+                string.IsNullOrWhiteSpace(_query)
+                || (d.Name ?? "").Contains(_query, StringComparison.OrdinalIgnoreCase)
+                || d.Exercises.Any(e => (e.Name ?? "").Contains(_query, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+    private static string DisplayName(string? name)
+        => string.IsNullOrWhiteSpace(name) ? "(Unnamed workout)" : name.Trim();
+
+    private void Create()
+        => Nav.NavigateTo("workouts/new");
 
     private async Task DoWorkoutAsync(Guid definitionId)
     {

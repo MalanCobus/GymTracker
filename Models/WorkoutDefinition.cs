@@ -8,9 +8,8 @@ namespace GymTracker.Models
 
         [Required]
         [StringLength(80)]
-        public string Name { get; set; } = "Workout";
+        public string Name { get; set; } = string.Empty;
 
-        [MinLength(1)]
         public List<WorkoutExercise> Exercises { get; set; } = new();
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
