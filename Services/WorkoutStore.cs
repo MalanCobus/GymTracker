@@ -4,187 +4,212 @@ namespace GymTracker.Services
 {
     public sealed class WorkoutStore
     {
-        private const string StorageKeyV3 = "workoutpwa.entries.v3";
-        private const string StorageKeyV2 = "workoutpwa.entries.v2";
-        private const string StorageKeyV1 = "workoutpwa.entries.v1";
+        private const string GroupsKeyV1 = "gymtracker.groups.v1";
+        private const string TemplatesKeyV1 = "gymtracker.templates.v1";
+
+        // Migration (your previous app versions)
+        private static readonly string[] LegacyEntryKeys =
+        {
+        "gymtracker.entries.v3",
+        "workoutpwa.entries.v3"
+    };
 
         private readonly ILocalStorageService _storage;
 
         public WorkoutStore(ILocalStorageService storage) => _storage = storage;
 
-        public List<ExerciseEntry> Entries { get; private set; } = new();
+        public List<WorkoutGroup> Groups { get; private set; } = new();
+        public List<WorkoutTemplate> Templates { get; private set; } = new();
 
         public async Task LoadAsync(CancellationToken ct = default)
         {
-            var v3 = await _storage.GetAsync<List<ExerciseEntry>>(StorageKeyV3, ct);
-            if (v3 is { Count: > 0 })
-            {
-                Entries = Sort(v3);
-                return;
-            }
+            Groups = await _storage.GetAsync<List<WorkoutGroup>>(GroupsKeyV1, ct) ?? new List<WorkoutGroup>();
+            Groups = SortGroups(Groups);
 
-            var v2 = await _storage.GetAsync<List<LegacyExerciseEntryV2>>(StorageKeyV2, ct);
-            if (v2 is { Count: > 0 })
-            {
-                Entries = Sort(v2.Select(ConvertFromV2).ToList());
-                await SaveAsync(ct);
-                return;
-            }
+            Templates = await _storage.GetAsync<List<WorkoutTemplate>>(TemplatesKeyV1, ct) ?? new List<WorkoutTemplate>();
+            Templates = SortTemplates(Templates);
 
-            var v1 = await _storage.GetAsync<List<LegacyExerciseEntryV1>>(StorageKeyV1, ct);
-            if (v1 is { Count: > 0 })
+            if (Groups.Count == 0)
             {
-                Entries = Sort(v1.Select(ConvertFromV1).ToList());
-                await SaveAsync(ct);
-                return;
+                var migrated = await TryMigrateFromLegacyEntriesAsync(ct);
+                if (migrated)
+                    await SaveAsync(ct);
             }
-
-            Entries = new();
         }
 
         public async Task SaveAsync(CancellationToken ct = default)
         {
-            Entries = Sort(Entries);
-            await _storage.SetAsync(StorageKeyV3, Entries, ct);
+            Groups = SortGroups(Groups);
+            Templates = SortTemplates(Templates);
+
+            await _storage.SetAsync(GroupsKeyV1, Groups, ct);
+            await _storage.SetAsync(TemplatesKeyV1, Templates, ct);
         }
 
-        public async Task AddAsync(ExerciseEntry entry, CancellationToken ct = default)
+        public IReadOnlyList<WorkoutGroup> GetGroupsByDate(DateOnly date)
+            => Groups.Where(g => g.WorkoutDate == date).OrderByDescending(g => g.UpdatedAt).ToList();
+
+        public WorkoutGroup? GetGroup(Guid id) => Groups.FirstOrDefault(g => g.Id == id);
+        public WorkoutTemplate? GetTemplate(Guid id) => Templates.FirstOrDefault(t => t.Id == id);
+
+        public async Task<WorkoutGroup> CreateGroupAsync(DateOnly date, string name, CancellationToken ct = default)
         {
-            entry.Id = Guid.NewGuid();
-            entry.Name = entry.Name.Trim();
-            entry.CreatedAt = DateTimeOffset.UtcNow;
-            entry.UpdatedAt = entry.CreatedAt;
+            var g = new WorkoutGroup
+            {
+                Id = Guid.NewGuid(),
+                WorkoutDate = date,
+                Name = string.IsNullOrWhiteSpace(name) ? "Workout" : name.Trim(),
+                Exercises = new List<WorkoutExercise>(),
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
 
-            Normalize(entry);
+            Groups.Insert(0, g);
+            await SaveAsync(ct);
+            return g;
+        }
 
-            Entries.Insert(0, entry);
+        public async Task DeleteGroupAsync(Guid groupId, CancellationToken ct = default)
+        {
+            Groups.RemoveAll(g => g.Id == groupId);
             await SaveAsync(ct);
         }
 
-        public async Task UpdateAsync(ExerciseEntry updated, CancellationToken ct = default)
+        public async Task UpdateGroupAsync(WorkoutGroup updated, CancellationToken ct = default)
         {
-            var idx = Entries.FindIndex(e => e.Id == updated.Id);
+            var idx = Groups.FindIndex(g => g.Id == updated.Id);
             if (idx < 0) return;
 
-            updated.Name = updated.Name.Trim();
-            Normalize(updated);
+            NormalizeGroup(updated);
+            updated.UpdatedAt = DateTimeOffset.UtcNow;
 
-            var existing = Entries[idx];
-            existing.Name = updated.Name;
-            existing.WorkoutDate = updated.WorkoutDate;
-            existing.Sets = updated.Sets;
-            existing.UpdatedAt = DateTimeOffset.UtcNow;
-
+            Groups[idx] = updated;
             await SaveAsync(ct);
         }
 
-        public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+        public async Task<WorkoutTemplate> SaveGroupAsTemplateAsync(Guid groupId, string templateName, CancellationToken ct = default)
         {
-            Entries.RemoveAll(e => e.Id == id);
+            var g = GetGroup(groupId) ?? throw new InvalidOperationException("Group not found.");
+
+            var t = new WorkoutTemplate
+            {
+                Id = Guid.NewGuid(),
+                Name = string.IsNullOrWhiteSpace(templateName) ? g.Name : templateName.Trim(),
+                Exercises = CloneExercises(g.Exercises),
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            Templates.Insert(0, t);
+            await SaveAsync(ct);
+            return t;
+        }
+
+        public async Task DeleteTemplateAsync(Guid templateId, CancellationToken ct = default)
+        {
+            Templates.RemoveAll(t => t.Id == templateId);
             await SaveAsync(ct);
         }
 
-        public async Task ClearAllAsync(CancellationToken ct = default)
+        public async Task<WorkoutGroup> CreateGroupFromTemplateAsync(DateOnly date, Guid templateId, string? groupNameOverride = null, CancellationToken ct = default)
         {
-            Entries.Clear();
-            await _storage.RemoveAsync(StorageKeyV3, ct);
-            await _storage.RemoveAsync(StorageKeyV2, ct);
-            await _storage.RemoveAsync(StorageKeyV1, ct);
+            var t = GetTemplate(templateId) ?? throw new InvalidOperationException("Template not found.");
+
+            var g = new WorkoutGroup
+            {
+                Id = Guid.NewGuid(),
+                WorkoutDate = date,
+                Name = string.IsNullOrWhiteSpace(groupNameOverride) ? t.Name : groupNameOverride.Trim(),
+                Exercises = CloneExercises(t.Exercises),
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            Groups.Insert(0, g);
+            await SaveAsync(ct);
+            return g;
         }
 
-        public async Task<int> CopyFromDateAsync(DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
+        private static void NormalizeGroup(WorkoutGroup g)
         {
-            if (fromDate == toDate) return 0;
+            g.Name = (g.Name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(g.Name)) g.Name = "Workout";
 
-            var src = Entries
-                .Where(e => e.WorkoutDate == fromDate)
-                .OrderBy(e => e.UpdatedAt)
-                .ToList();
+            g.Exercises ??= new List<WorkoutExercise>();
+            g.Exercises.RemoveAll(e => e is null);
 
-            if (src.Count == 0) return 0;
+            foreach (var e in g.Exercises)
+            {
+                e.Name = (e.Name ?? string.Empty).Trim();
+                e.Sets ??= new List<ExerciseSet>();
+                e.Sets.RemoveAll(s => s is null);
+                if (e.Sets.Count == 0) e.Sets.Add(new ExerciseSet { Reps = 10, Weight = 0 });
+            }
+        }
 
-            var now = DateTimeOffset.UtcNow;
-
-            var clones = src.Select(e => new ExerciseEntry
+        private static List<WorkoutExercise> CloneExercises(IEnumerable<WorkoutExercise> exercises)
+            => exercises.Select(e => new WorkoutExercise
             {
                 Id = Guid.NewGuid(),
                 Name = e.Name,
-                WorkoutDate = toDate,
-                Sets = e.Sets.Select(s => new ExerciseSet { Reps = s.Reps, Weight = s.Weight }).ToList(),
-                CreatedAt = now,
-                UpdatedAt = now
+                Sets = e.Sets.Select(s => new ExerciseSet { Reps = s.Reps, Weight = s.Weight }).ToList()
             }).ToList();
 
-            Entries.InsertRange(0, clones);
-            await SaveAsync(ct);
-            return clones.Count;
-        }
-
-        private static void Normalize(ExerciseEntry entry)
-        {
-            entry.Sets ??= new List<ExerciseSet>();
-            entry.Sets.RemoveAll(s => s is null);
-            if (entry.Sets.Count == 0)
-                entry.Sets.Add(new ExerciseSet { Reps = 10, Weight = 0 });
-        }
-
-        private static List<ExerciseEntry> Sort(IEnumerable<ExerciseEntry> entries)
-            => entries
-                .OrderByDescending(e => e.WorkoutDate)
-                .ThenByDescending(e => e.UpdatedAt)
+        private static List<WorkoutGroup> SortGroups(IEnumerable<WorkoutGroup> groups)
+            => groups
+                .OrderByDescending(g => g.WorkoutDate)
+                .ThenByDescending(g => g.UpdatedAt)
                 .ToList();
 
-        private static ExerciseEntry ConvertFromV2(LegacyExerciseEntryV2 v2)
-            => new()
-            {
-                Id = v2.Id,
-                Name = v2.Name ?? string.Empty,
-                WorkoutDate = v2.WorkoutDate,
-                Sets = ExpandLegacySets(v2.Sets, v2.Weight),
-                CreatedAt = v2.CreatedAt,
-                UpdatedAt = v2.UpdatedAt
-            };
+        private static List<WorkoutTemplate> SortTemplates(IEnumerable<WorkoutTemplate> templates)
+            => templates
+                .OrderByDescending(t => t.UpdatedAt)
+                .ToList();
 
-        private static ExerciseEntry ConvertFromV1(LegacyExerciseEntryV1 v1)
+        private async Task<bool> TryMigrateFromLegacyEntriesAsync(CancellationToken ct)
         {
-            var localCreated = v1.CreatedAt.ToLocalTime().DateTime;
-            return new ExerciseEntry
+            foreach (var key in LegacyEntryKeys)
             {
-                Id = v1.Id,
-                Name = v1.Name ?? string.Empty,
-                WorkoutDate = DateOnly.FromDateTime(localCreated),
-                Sets = ExpandLegacySets(v1.Sets, v1.Weight),
-                CreatedAt = v1.CreatedAt,
-                UpdatedAt = v1.UpdatedAt
-            };
+                var legacy = await _storage.GetAsync<List<LegacyExerciseEntryV3>>(key, ct);
+                if (legacy is not { Count: > 0 }) continue;
+
+                var byDate = legacy.GroupBy(e => e.WorkoutDate)
+                    .OrderByDescending(g => g.Key);
+
+                foreach (var dateGroup in byDate)
+                {
+                    var group = new WorkoutGroup
+                    {
+                        Id = Guid.NewGuid(),
+                        WorkoutDate = dateGroup.Key,
+                        Name = "Workout",
+                        Exercises = dateGroup.Select(e => new WorkoutExercise
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = e.Name ?? string.Empty,
+                            Sets = e.Sets?.Select(s => new ExerciseSet { Reps = s.Reps, Weight = s.Weight }).ToList() ?? new List<ExerciseSet>()
+                        }).ToList(),
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    };
+
+                    NormalizeGroup(group);
+                    Groups.Add(group);
+                }
+
+                Groups = SortGroups(Groups);
+                return true;
+            }
+
+            return false;
         }
 
-        private static List<ExerciseSet> ExpandLegacySets(int sets, decimal weight)
-        {
-            sets = Math.Clamp(sets, 1, 100);
-            var list = new List<ExerciseSet>(sets);
-            for (var i = 0; i < sets; i++)
-                list.Add(new ExerciseSet { Reps = 0, Weight = weight }); // reps unknown during migration
-            return list;
-        }
-
-        private sealed class LegacyExerciseEntryV2
+        private sealed class LegacyExerciseEntryV3
         {
             public Guid Id { get; set; }
             public string? Name { get; set; }
-            public int Sets { get; set; }
-            public decimal Weight { get; set; }
             public DateOnly WorkoutDate { get; set; }
-            public DateTimeOffset CreatedAt { get; set; }
-            public DateTimeOffset UpdatedAt { get; set; }
-        }
-
-        private sealed class LegacyExerciseEntryV1
-        {
-            public Guid Id { get; set; }
-            public string? Name { get; set; }
-            public int Sets { get; set; }
-            public decimal Weight { get; set; }
+            public List<ExerciseSet>? Sets { get; set; }
             public DateTimeOffset CreatedAt { get; set; }
             public DateTimeOffset UpdatedAt { get; set; }
         }
