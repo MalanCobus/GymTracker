@@ -248,7 +248,7 @@ else
             var session = await Store.StartWorkoutAsync(_editing.DefinitionId, today);
 
             // IMPORTANT: route should be /current/{sessionId}
-            Nav.NavigateTo($"/current/{session.Id}");
+            Nav.NavigateTo($"current/{session.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
