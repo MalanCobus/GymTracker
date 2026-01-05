@@ -1,0 +1,73 @@
+name: Deploy Blazor PWA to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+env:
+  CONFIGURATION: Release
+  CSPROJ_PATH: GymTracker.csproj
+  PUBLISH_DIR: publish
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish
+        run: dotnet publish "${{ env.CSPROJ_PATH }}" -c "${{ env.CONFIGURATION }}" -o "${{ env.PUBLISH_DIR }}"
+
+      # GitHub Pages needs this so folders like `_framework` are served
+      - name: Add .nojekyll
+        run: touch "${{ env.PUBLISH_DIR }}/wwwroot/.nojekyll"
+        # MS docs call this out for _framework deployments on Pages
+        # (underscore folders otherwise get skipped)
+        # :contentReference[oaicite:1]{index=1}
+
+      # SPA routing fallback (so refresh on /some/route works)
+      - name: SPA fallback (copy index.html to 404.html)
+        run: cp "${{ env.PUBLISH_DIR }}/wwwroot/index.html" "${{ env.PUBLISH_DIR }}/wwwroot/404.html"
+        # This is a common Pages SPA technique
+        # :contentReference[oaicite:2]{index=2}
+
+      # IMPORTANT: Project Pages are hosted at /<repo>/, so base href must match.
+      - name: Rewrite base href for GitHub Pages
+        uses: stevesandersonms/ghaction-rewrite-base-href@v1
+        with:
+          html_path: "${{ env.PUBLISH_DIR }}/wwwroot/index.html"
+          base_href: "/${{ github.event.repository.name }}/"
+        # MS docs recommend rewriting base href for Pages deployments
+        # :contentReference[oaicite:3]{index=3}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "${{ env.PUBLISH_DIR }}/wwwroot"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
