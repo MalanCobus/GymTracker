@@ -1,0 +1,169 @@
+﻿@page "/groups"
+@using GymTracker.Models
+@inject GymTracker.Services.WorkoutStore Store
+@inject NavigationManager Nav
+
+<PageTitle>Groups</PageTitle>
+
+<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
+    <h1 style="margin-bottom: 6px;">Groups</h1>
+
+    @if (!string.IsNullOrWhiteSpace(_info))
+    {
+        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">
+            @_info
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">
+            @_error
+        </div>
+    }
+
+    <div style="display:flex; gap: 12px; align-items:end; flex-wrap: wrap;">
+        <label style="min-width: 220px;">
+            Date
+            <InputDate class="form-control" @bind-Value="_selectedDate" />
+        </label>
+
+        <label style="min-width: 260px;">
+            New group name
+            <InputText class="form-control" @bind-Value="_newGroupName" />
+        </label>
+
+        <button class="btn btn-primary" @onclick="CreateGroupAsync">+ Create group</button>
+
+        <div style="flex: 1;"></div>
+
+        <label style="min-width: 260px;">
+            Load template
+            <select class="form-select" @bind="_selectedTemplateId">
+                <option value="">-- select --</option>
+                @foreach (var t in Store.Templates)
+                {
+                    <option value="@t.Id.ToString()">@t.Name</option>
+                }
+            </select>
+        </label>
+
+        <button class="btn btn-outline-primary"
+                @onclick="AddFromTemplateAsync"
+                disabled="@string.IsNullOrWhiteSpace(_selectedTemplateId)">
+            + Add group from template
+        </button>
+    </div>
+
+    <hr />
+
+    <h3 style="margin:0;">@SelectedDateOnly.ToString("yyyy-MM-dd")</h3>
+
+    @if (GroupsForSelectedDate.Count == 0)
+    {
+        <p style="opacity:0.8;">No groups yet for this day.</p>
+    }
+    else
+    {
+        <div style="display:grid; gap: 10px; margin-top: 10px;">
+            @foreach (var g in GroupsForSelectedDate)
+            {
+                <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;">
+                    <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size: 1.05em;">@g.Name</div>
+                        <div style="opacity:.75;">(@g.Exercises.Count exercise(s))</div>
+
+                        <div style="flex:1;"></div>
+
+                        <a class="btn btn-sm btn-outline-primary" href="@($"/groups/{g.Id}")">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteGroupAsync(g.Id)">Delete</button>
+                    </div>
+
+                    <div style="opacity:.85; margin-top: 6px;">
+                        @RenderGroupSummary(g)
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string? _error;
+    private string? _info;
+
+    private DateTime _selectedDate = DateTime.Today;
+    private string? _newGroupName;
+
+    private string? _selectedTemplateId;
+
+    private DateOnly SelectedDateOnly => DateOnly.FromDateTime(_selectedDate);
+    private DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private List<WorkoutGroup> GroupsForSelectedDate
+        => Store.GetGroupsByDate(SelectedDateOnly).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Store.EnsureLoadedAsync();
+    }
+
+    private async Task CreateGroupAsync()
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            var g = await Store.CreateGroupAsync(SelectedDateOnly, _newGroupName ?? "Workout");
+            _info = $"Created group: {g.Name}";
+            _newGroupName = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task AddFromTemplateAsync()
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            if (!Guid.TryParse(_selectedTemplateId, out var id))
+                return;
+
+            var g = await Store.CreateGroupFromTemplateAsync(SelectedDateOnly, id);
+            _info = $"Added group from template: {g.Name}";
+            _selectedTemplateId = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteGroupAsync(Guid groupId)
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            await Store.DeleteGroupAsync(groupId);
+            _info = "Group deleted.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string RenderGroupSummary(WorkoutGroup g)
+    {
+        if (g.Exercises.Count == 0) return "No exercises yet.";
+        return string.Join(" · ", g.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"));
+    }
+}

@@ -15,6 +15,12 @@ namespace GymTracker.Models
         [MinLength(1)]
         public List<WorkoutExercise> Exercises { get; set; } = new();
 
+        /// <summary>
+        /// If this group is a "workout instance" created from another group, this points to the original group.
+        /// Used to avoid creating multiple copies for the same day.
+        /// </summary>
+        public Guid? OriginGroupId { get; set; }
+
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     }

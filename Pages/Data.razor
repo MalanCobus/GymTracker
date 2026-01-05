@@ -1,0 +1,104 @@
+﻿@page "/data"
+@using System.Text.Json
+@inject GymTracker.Services.ILocalStorageService Storage
+
+<PageTitle>Data</PageTitle>
+
+<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
+    <h1 style="margin-bottom: 6px;">Data</h1>
+    <p style="margin-top: 0; opacity: .8;">View/edit raw localStorage JSON.</p>
+
+    @if (!string.IsNullOrWhiteSpace(_msg))
+    {
+        <div style="padding:10px;border:1px solid rgba(0,0,0,.2);border-radius:8px;margin:12px 0;">
+            @_msg
+        </div>
+    }
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+        <button class="btn btn-outline-primary" @onclick="LoadAsync">Load</button>
+        <button class="btn btn-primary" @onclick="SaveAsync">Save</button>
+        <button class="btn btn-outline-secondary" @onclick="FormatAsync">Format JSON</button>
+        <button class="btn btn-outline-danger" @onclick="ClearAsync">Clear groups/templates</button>
+    </div>
+
+    <label style="display:block; font-weight:600;">Key</label>
+    <select class="form-select" style="max-width: 420px;" @bind="_key">
+        <option value="gymtracker.groups.v1">gymtracker.groups.v1</option>
+        <option value="gymtracker.templates.v1">gymtracker.templates.v1</option>
+        <option value="gymtracker.entries.v3">gymtracker.entries.v3 (legacy)</option>
+        <option value="workoutpwa.entries.v3">workoutpwa.entries.v3 (legacy)</option>
+    </select>
+
+    <div style="margin-top: 12px;">
+        <label style="display:block; font-weight:600;">JSON</label>
+        <textarea class="form-control"
+                  style="min-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"
+                  @bind="_json"
+                  @bind:event="oninput"></textarea>
+    </div>
+</div>
+
+@code {
+    private string _key = "gymtracker.groups.v1";
+    private string _json = "";
+    private string? _msg;
+
+    private async Task LoadAsync()
+    {
+        _msg = null;
+
+        var raw = await Storage.GetRawAsync(_key);
+        _json = raw ?? "";
+        _msg = raw is null ? "Key is empty / missing." : $"Loaded {_key}.";
+    }
+
+    private async Task SaveAsync()
+    {
+        _msg = null;
+
+        try
+        {
+            var text = string.IsNullOrWhiteSpace(_json) ? "null" : _json;
+
+            // Validate JSON before saving
+            _ = JsonDocument.Parse(text);
+
+            await Storage.SetRawAsync(_key, text);
+            _msg = $"Saved {_key}. (Refresh/reopen your other page to see changes)";
+        }
+        catch (Exception ex)
+        {
+            _msg = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async Task FormatAsync()
+    {
+        _msg = null;
+
+        try
+        {
+            var text = string.IsNullOrWhiteSpace(_json) ? "null" : _json;
+            using var doc = JsonDocument.Parse(text);
+            _json = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true });
+            _msg = "Formatted.";
+        }
+        catch (Exception ex)
+        {
+            _msg = $"Format failed: {ex.Message}";
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task ClearAsync()
+    {
+        _msg = null;
+
+        await Storage.RemoveAsync("gymtracker.groups.v1");
+        await Storage.RemoveAsync("gymtracker.templates.v1");
+
+        _msg = "Cleared gymtracker.groups.v1 and gymtracker.templates.v1.";
+    }
+}

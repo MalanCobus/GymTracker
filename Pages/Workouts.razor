@@ -1,0 +1,118 @@
+﻿@page "/workouts"
+@using GymTracker.Models
+@inject GymTracker.Services.WorkoutStore Store
+@inject NavigationManager Nav
+
+<PageTitle>Workouts</PageTitle>
+
+<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
+    <h1 style="margin-bottom: 6px;">Workouts</h1>
+    <p style="margin-top: 0; opacity: 0.8;">Distinct by name (all dates).</p>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">
+            @_error
+        </div>
+    }
+
+    @if (WorkoutList.Count == 0)
+    {
+        <p style="opacity:0.8;">No workouts yet. Create a group first.</p>
+    }
+    else
+    {
+        <div style="display:grid; gap: 10px; margin-top: 10px;">
+            @foreach (var w in WorkoutList)
+            {
+                <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;">
+                    <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
+                        <div style="font-weight:700; font-size: 1.05em;">@w.Name</div>
+                        <div style="opacity:.75;">
+                            (@w.InstanceCount instance(s) · last: @w.Latest.WorkoutDate.ToString("yyyy-MM-dd"))
+                        </div>
+
+                        <div style="flex:1;"></div>
+
+                        <button class="btn btn-sm btn-success" @onclick="() => DoWorkoutAsync(w.Latest.Id)">
+                            Do workout
+                        </button>
+
+                        <a class="btn btn-sm btn-outline-primary" href="@($"/groups/{w.Latest.Id}")">
+                            Open latest
+                        </a>
+                    </div>
+
+                    <div style="opacity:.85; margin-top: 6px;">
+                        @RenderGroupSummary(w.Latest)
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string? _error;
+
+    private DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private List<WorkoutListItem> WorkoutList { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Store.EnsureLoadedAsync();
+        BuildList();
+    }
+
+    private void BuildList()
+    {
+        WorkoutList = Store.Groups
+            .Where(g => !string.IsNullOrWhiteSpace(g.Name))
+            .GroupBy(g => g.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(grp =>
+            {
+                var latest = grp
+                    .OrderByDescending(x => x.WorkoutDate)
+                    .ThenByDescending(x => x.UpdatedAt)
+                    .First();
+
+                return new WorkoutListItem
+                {
+                    Name = grp.Key,
+                    InstanceCount = grp.Count(),
+                    Latest = latest
+                };
+            })
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task DoWorkoutAsync(Guid groupId)
+    {
+        _error = null;
+
+        try
+        {
+            var current = await Store.StartWorkoutAsync(groupId, Today);
+            Nav.NavigateTo($"/current/{current.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string RenderGroupSummary(WorkoutGroup g)
+    {
+        if (g.Exercises.Count == 0) return "No exercises yet.";
+        return string.Join(" · ", g.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"));
+    }
+
+    private sealed class WorkoutListItem
+    {
+        public string Name { get; set; } = "";
+        public int InstanceCount { get; set; }
+        public WorkoutGroup Latest { get; set; } = new();
+    }
+}
