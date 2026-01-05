@@ -1,0 +1,407 @@
+﻿@page "/"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using GymTracker.Models
+@inject GymTracker.Services.WorkoutStore Store
+
+<PageTitle>Workout</PageTitle>
+
+<div style="max-width: 820px; margin: 0 auto; padding: 16px;">
+    <h1 style="margin-bottom: 6px;">Workout Log</h1>
+    <p style="margin-top: 0; opacity: 0.8;">Saved locally on this phone.</p>
+
+    @if (!string.IsNullOrWhiteSpace(_info))
+    {
+        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">
+            @_info
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">
+            @_error
+        </div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="OnSubmitAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div style="display: grid; gap: 10px; grid-template-columns: 1fr;">
+            <label>
+                Date
+                <InputDate class="form-control" @bind-Value="_selectedDate" />
+            </label>
+
+            <label>
+                Exercise name
+                <InputText class="form-control" @bind-Value="_form.Name" />
+            </label>
+
+            <div style="display:flex; align-items:center; gap: 10px; margin-top: 6px;">
+                <strong>Sets</strong>
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddSet">+ Add set</button>
+                <span style="opacity: .75;">(reps + weight per set)</span>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">#</th>
+                            <th style="width: 180px;">Reps</th>
+                            <th style="width: 220px;">Weight</th>
+                            <th style="width: 120px;"></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @{
+                            var row = 0;
+                        }
+                        @foreach (var set in _form.Sets)
+                        {
+                            row++;
+                            <tr @key="set.RowId">
+                                <td>@row</td>
+
+                                <td>
+                                    <input class="form-control"
+                                           type="text"
+                                           inputmode="numeric"
+                                           pattern="[0-9]*"
+                                           @bind="set.RepsText"
+                                           @bind:event="oninput" />
+                                </td>
+
+                                <td>
+                                    <input class="form-control"
+                                           type="text"
+                                           inputmode="decimal"
+                                           @bind="set.WeightText"
+                                           @bind:event="oninput" />
+                                </td>
+
+                                <td class="text-end">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => RemoveSet(set.RowId)"
+                                            disabled="@(_form.Sets.Count <= 1)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display:flex; gap: 10px; align-items:center; margin-top: 6px;">
+                <button type="submit" class="btn btn-primary">@(_isEditing ? "Update" : "Add")</button>
+                <button type="button" class="btn btn-secondary" @onclick="ResetForm">Clear</button>
+
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        @onclick="CopyPreviousDayAsync"
+                        disabled="@(!_canCopyPreviousDay)">
+                    Copy previous day
+                </button>
+
+                <div style="flex: 1;"></div>
+
+                <button type="button" class="btn btn-outline-danger" @onclick="ClearAllAsync" disabled="@(!Store.Entries.Any())">
+                    Clear all
+                </button>
+            </div>
+        </div>
+    </EditForm>
+
+    <hr style="margin: 18px 0;" />
+
+    <h3 style="margin-bottom: 10px;">History</h3>
+
+    @if (!Store.Entries.Any())
+    {
+        <p style="opacity: 0.8;">No entries yet. Add your first exercise above.</p>
+    }
+    else
+    {
+        @foreach (var group in GroupedByDate())
+        {
+            <div style="margin-bottom: 14px;">
+                <div style="display:flex; align-items: baseline; gap: 10px;">
+                    <h4 style="margin: 0;">@FormatDate(group.Date)</h4>
+                    <span style="opacity: 0.7;">(@group.Items.Count)</span>
+                </div>
+
+                <div style="display: grid; gap: 10px; margin-top: 10px;">
+                    @foreach (var e in group.Items)
+                    {
+                        <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 10px;">
+                            <div style="display:flex; gap: 10px; align-items:center;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600;">@e.Name</div>
+
+                                    <div style="opacity: 0.85;">
+                                        @RenderSetsInline(e.Sets)
+                                    </div>
+
+                                    <div style="opacity: 0.75; font-size: 0.9em; margin-top: 4px;">
+                                        Updated: @e.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ·
+                                        Volume: @ComputeVolume(e.Sets)
+                                    </div>
+                                </div>
+
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => BeginEdit(e)">Edit</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(e.Id)">Delete</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string? _error;
+    private string? _info;
+
+    private ExerciseFormModel _form = new();
+    private bool _isEditing;
+    private Guid _editingId;
+
+    private DateTime _selectedDate = DateTime.Today;
+
+    private bool _canCopyPreviousDay =>
+        !_isEditing &&
+        Store.Entries.Any(e => e.WorkoutDate == SelectedDateOnly.AddDays(-1));
+
+    private DateOnly SelectedDateOnly => DateOnly.FromDateTime(_selectedDate);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Store.LoadAsync();
+    }
+
+    private void AddSet()
+    {
+        var last = _form.Sets.LastOrDefault();
+
+        _form.Sets.Add(new ExerciseSetFormModel
+        {
+            RowId = Guid.NewGuid(),
+            RepsText = last?.RepsText ?? "10",
+            WeightText = last?.WeightText ?? "0"
+        });
+    }
+
+    private void RemoveSet(Guid rowId)
+    {
+        if (_form.Sets.Count <= 1) return;
+
+        var idx = _form.Sets.FindIndex(s => s.RowId == rowId);
+        if (idx < 0) return;
+
+        _form.Sets.RemoveAt(idx);
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            var name = (_form.Name ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                _error = "Exercise name cannot be empty.";
+                return;
+            }
+
+            var sets = new List<ExerciseSet>();
+
+            for (var i = 0; i < _form.Sets.Count; i++)
+            {
+                var s = _form.Sets[i];
+
+                if (!int.TryParse((s.RepsText ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var reps))
+                    throw new ValidationException($"Set {i + 1}: reps must be a whole number.");
+
+                var wText = (s.WeightText ?? "").Trim();
+                var normalized = wText.Replace(',', '.');
+
+                if (!decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var weight))
+                    throw new ValidationException($"Set {i + 1}: weight must be a number.");
+
+                sets.Add(new ExerciseSet { Reps = reps, Weight = weight });
+            }
+
+            if (sets.Count == 0)
+            {
+                _error = "Add at least one set.";
+                return;
+            }
+
+            var entry = new ExerciseEntry
+            {
+                Id = _editingId,
+                Name = name,
+                WorkoutDate = SelectedDateOnly,
+                Sets = sets
+            };
+
+            if (_isEditing)
+                await Store.UpdateAsync(entry);
+            else
+                await Store.AddAsync(entry);
+
+            ResetForm();
+        }
+        catch (ValidationException vex)
+        {
+            _error = vex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Save failed: {ex.Message}";
+        }
+    }
+
+    private async Task CopyPreviousDayAsync()
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            var toDate = SelectedDateOnly;
+            var fromDate = toDate.AddDays(-1);
+
+            var copied = await Store.CopyFromDateAsync(fromDate, toDate);
+            _info = copied == 0
+                ? $"Nothing to copy from {FormatDate(fromDate)}."
+                : $"Copied {copied} entr{(copied == 1 ? "y" : "ies")} from {FormatDate(fromDate)} to {FormatDate(toDate)}.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Copy failed: {ex.Message}";
+        }
+    }
+
+    private IEnumerable<(DateOnly Date, List<ExerciseEntry> Items)> GroupedByDate()
+    {
+        return Store.Entries
+            .GroupBy(e => e.WorkoutDate)
+            .OrderByDescending(g => g.Key)
+            .Select(g => (g.Key, g.OrderByDescending(x => x.UpdatedAt).ToList()));
+    }
+
+    private static string FormatDate(DateOnly date)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (date == today) return "Today";
+        if (date == today.AddDays(-1)) return "Yesterday";
+        return date.ToString("yyyy-MM-dd");
+    }
+
+    private void BeginEdit(ExerciseEntry e)
+    {
+        _isEditing = true;
+        _editingId = e.Id;
+        _selectedDate = e.WorkoutDate.ToDateTime(TimeOnly.MinValue);
+
+        _form = new ExerciseFormModel
+        {
+            Name = e.Name,
+            Sets = e.Sets.Select(s => new ExerciseSetFormModel
+            {
+                RowId = Guid.NewGuid(),
+                RepsText = s.Reps.ToString(CultureInfo.InvariantCulture),
+                WeightText = s.Weight.ToString(CultureInfo.InvariantCulture)
+            }).ToList()
+        };
+
+        if (_form.Sets.Count == 0)
+            _form.Sets.Add(new ExerciseSetFormModel());
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            await Store.DeleteAsync(id);
+
+            if (_isEditing && _editingId == id)
+                ResetForm();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Delete failed: {ex.Message}";
+        }
+    }
+
+    private async Task ClearAllAsync()
+    {
+        _error = null;
+        _info = null;
+
+        try
+        {
+            await Store.ClearAllAsync();
+            ResetForm();
+            _info = "Cleared all entries.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Clear failed: {ex.Message}";
+        }
+    }
+
+    private void ResetForm()
+    {
+        _isEditing = false;
+        _editingId = Guid.Empty;
+        _form = new ExerciseFormModel();
+        _selectedDate = DateTime.Today;
+    }
+
+    private static string RenderSetsInline(IReadOnlyList<ExerciseSet> sets)
+    {
+        if (sets.Count == 0) return "No sets";
+        return string.Join(", ", sets.Select((s, i) => $"{i + 1}) {s.Reps}×{s.Weight}"));
+    }
+
+    private static decimal ComputeVolume(IReadOnlyList<ExerciseSet> sets)
+    {
+        decimal total = 0;
+        foreach (var s in sets)
+            total += (decimal)s.Reps * s.Weight;
+        return total;
+    }
+
+    private sealed class ExerciseFormModel
+    {
+        [Required]
+        [StringLength(80)]
+        public string? Name { get; set; }
+
+        [MinLength(1)]
+        public List<ExerciseSetFormModel> Sets { get; set; } = new()
+        {
+            new ExerciseSetFormModel { RepsText = "10", WeightText = "0" }
+        };
+    }
+
+    private sealed class ExerciseSetFormModel
+    {
+        public Guid RowId { get; set; } = Guid.NewGuid();
+        public string RepsText { get; set; } = "10";
+        public string WeightText { get; set; } = "0";
+    }
+}
