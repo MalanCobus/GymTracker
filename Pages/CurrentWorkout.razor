@@ -1,4 +1,4 @@
-﻿@page "/current/{GroupId:guid}"
+﻿@page "/historyItem/{SessionId:guid}"
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using GymTracker.Models
@@ -8,33 +8,30 @@
 <PageTitle>Current workout</PageTitle>
 
 <div style="max-width: 980px; margin: 0 auto; padding: 16px;">
-    <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <h1 style="margin:0;">Current workout</h1>
-        <div style="opacity:.75;">(@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd"))</div>
-
+        @if (_editing is not null)
+        {
+            <div style="opacity:.75;">@_editing.WorkoutDate.ToString("yyyy-MM-dd")</div>
+        }
         <div style="flex:1;"></div>
-
-        <a class="btn btn-outline-secondary" href="/groups">Back to groups</a>
+        <a class="btn btn-outline-secondary" href="/workouts">Workouts</a>
+        <a class="btn btn-outline-secondary" href="/history">History</a>
         <button class="btn btn-primary" @onclick="SaveAsync" disabled="@(_editing is null)">Save</button>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(_info))
     {
-        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">
-            @_info
-        </div>
+        <div style="padding:10px;border:1px solid rgba(0,0,0,.2);border-radius:8px;margin:12px 0;">@_info</div>
     }
-
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">
-            @_error
-        </div>
+        <div style="padding:10px;border:1px solid #c33;border-radius:8px;margin:12px 0;">@_error</div>
     }
 
     @if (_editing is null)
     {
-        <p style="opacity:.8;">Workout not found.</p>
+        <p style="opacity:.8;">Workout session not found.</p>
     }
     else
     {
@@ -42,36 +39,18 @@
             <DataAnnotationsValidator />
             <ValidationSummary />
 
-            <div style="display:grid; gap: 10px;">
+            <div style="display:grid; gap:10px; margin-top:12px;">
                 <label>
                     Workout name
-                    <InputText class="form-control" @bind-Value="_editing.Name" />
+                    <InputText class="form-control" @bind-Value="_editing.NameSnapshot" />
                 </label>
-
-                <div style="display:flex; gap: 10px; align-items:center;">
-                    <strong>Exercises</strong>
-                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddExercise">+ Add exercise</button>
-                </div>
 
                 @foreach (var ex in _editing.Exercises)
                 {
                     <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;" @key="ex.RowId">
-                        <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
-                            <label style="flex:1; min-width: 240px; margin: 0;">
-                                Exercise name
-                                <input class="form-control" type="text" @bind="ex.Name" @bind:event="oninput" />
-                            </label>
-
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-danger"
-                                    @onclick="() => RemoveExercise(ex.RowId)"
-                                    disabled="@(_editing.Exercises.Count <= 1)">
-                                Remove exercise
-                            </button>
-                        </div>
-
-                        <div style="display:flex; gap: 10px; align-items:center; margin-top: 10px;">
-                            <strong>Sets</strong>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <div style="font-weight:700;">@ex.Name</div>
+                            <div style="flex:1;"></div>
                             <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => AddSet(ex.RowId)">+ Add set</button>
                         </div>
 
@@ -79,10 +58,10 @@
                             <table class="table table-sm align-middle">
                                 <thead>
                                     <tr>
-                                        <th style="width: 70px;">#</th>
-                                        <th style="width: 180px;">Reps</th>
-                                        <th style="width: 220px;">Weight</th>
-                                        <th style="width: 120px;"></th>
+                                        <th style="width:70px;">#</th>
+                                        <th style="width:180px;">Reps</th>
+                                        <th style="width:220px;">Weight</th>
+                                        <th style="width:120px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -94,24 +73,10 @@
                                         row++;
                                         <tr @key="s.RowId">
                                             <td>@row</td>
-                                            <td>
-                                                <input class="form-control"
-                                                       type="text"
-                                                       inputmode="numeric"
-                                                       pattern="[0-9]*"
-                                                       @bind="s.RepsText"
-                                                       @bind:event="oninput" />
-                                            </td>
-                                            <td>
-                                                <input class="form-control"
-                                                       type="text"
-                                                       inputmode="decimal"
-                                                       @bind="s.WeightText"
-                                                       @bind:event="oninput" />
-                                            </td>
+                                            <td><input class="form-control" type="text" inputmode="numeric" pattern="[0-9]*" @bind="s.RepsText" @bind:event="oninput" /></td>
+                                            <td><input class="form-control" type="text" inputmode="decimal" @bind="s.WeightText" @bind:event="oninput" /></td>
                                             <td class="text-end">
-                                                <button type="button"
-                                                        class="btn btn-sm btn-outline-danger"
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
                                                         @onclick="() => RemoveSet(ex.RowId, s.RowId)"
                                                         disabled="@(ex.Sets.Count <= 1)">
                                                     Remove
@@ -130,48 +95,28 @@
 </div>
 
 @code {
-    [Parameter] public Guid GroupId { get; set; }
+    [Parameter] public Guid SessionId { get; set; }
 
     private string? _error;
     private string? _info;
 
-    private GroupEditModel? _editing;
+    private SessionEditModel? _editing;
 
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
 
-        var g = Store.GetGroup(GroupId);
-        if (g is null) return;
+        var s = Store.GetSession(SessionId);
+        if (s is null) return;
 
-        _editing = GroupEditModel.FromModel(g);
+        _editing = SessionEditModel.FromModel(s);
     }
 
-    private void AddExercise()
+    private void AddSet(Guid exRowId)
     {
         if (_editing is null) return;
 
-        _editing.Exercises.Add(new ExerciseEditModel
-        {
-            RowId = Guid.NewGuid(),
-            Name = "",
-            Sets = new List<SetEditModel> { new() }
-        });
-    }
-
-    private void RemoveExercise(Guid exerciseRowId)
-    {
-        if (_editing is null) return;
-        if (_editing.Exercises.Count <= 1) return;
-
-        _editing.Exercises.RemoveAll(e => e.RowId == exerciseRowId);
-    }
-
-    private void AddSet(Guid exerciseRowId)
-    {
-        if (_editing is null) return;
-
-        var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exerciseRowId);
+        var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
 
         var last = ex.Sets.LastOrDefault();
@@ -183,11 +128,11 @@
         });
     }
 
-    private void RemoveSet(Guid exerciseRowId, Guid setRowId)
+    private void RemoveSet(Guid exRowId, Guid setRowId)
     {
         if (_editing is null) return;
 
-        var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exerciseRowId);
+        var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
         if (ex.Sets.Count <= 1) return;
 
@@ -196,70 +141,56 @@
 
     private async Task SaveAsync()
     {
-        _error = null;
-        _info = null;
-
+        _error = null; _info = null;
         if (_editing is null) return;
 
         try
         {
-            var today = DateOnly.FromDateTime(DateTime.Today);
-            var updated = _editing.ToModel(today);
-
-            // Safety: ensure this stays "today"
-            updated.WorkoutDate = today;
-
-            await Store.UpdateGroupAsync(updated);
+            var updated = _editing.ToModel();
+            await Store.UpdateSessionAsync(updated);
             _info = "Saved.";
         }
-        catch (ValidationException vex)
-        {
-            _error = vex.Message;
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
+        catch (ValidationException vex) { _error = vex.Message; }
+        catch (Exception ex) { _error = ex.Message; }
     }
 
-    // ===== UI edit models (string-based) =====
-
-    private sealed class GroupEditModel
+    private sealed class SessionEditModel
     {
-        public Guid GroupId { get; set; }
+        public Guid SessionId { get; set; }
+        public Guid DefinitionId { get; set; }
+        public DateOnly WorkoutDate { get; set; }
 
         [Required, StringLength(80)]
-        public string Name { get; set; } = "Workout";
+        public string NameSnapshot { get; set; } = "Workout";
 
-        [MinLength(1, ErrorMessage = "Add at least one exercise.")]
+        [MinLength(1)]
         public List<ExerciseEditModel> Exercises { get; set; } = new();
 
-        public static GroupEditModel FromModel(WorkoutGroup g)
-        {
-            return new GroupEditModel
+        public static SessionEditModel FromModel(WorkoutSession s)
+            => new()
             {
-                GroupId = g.Id,
-                Name = g.Name,
-                Exercises = g.Exercises.Select(ExerciseEditModel.FromModel).ToList()
+                SessionId = s.Id,
+                DefinitionId = s.DefinitionId,
+                WorkoutDate = s.WorkoutDate,
+                NameSnapshot = s.NameSnapshot,
+                Exercises = s.Exercises.Select(ExerciseEditModel.FromModel).ToList()
             };
-        }
 
-        public WorkoutGroup ToModel(DateOnly date)
+        public WorkoutSession ToModel()
         {
-            var name = (Name ?? "").Trim();
+            var name = (NameSnapshot ?? "").Trim();
             if (string.IsNullOrWhiteSpace(name))
                 throw new ValidationException("Workout name is required.");
 
-            var exercises = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList();
-            if (exercises.Count == 0)
-                throw new ValidationException("Add at least one exercise.");
+            var ex = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList();
 
-            return new WorkoutGroup
+            return new WorkoutSession
             {
-                Id = GroupId,
-                WorkoutDate = date,
-                Name = name,
-                Exercises = exercises
+                Id = SessionId,
+                DefinitionId = DefinitionId,
+                NameSnapshot = name,
+                WorkoutDate = WorkoutDate,
+                Exercises = ex
             };
         }
     }
@@ -267,33 +198,25 @@
     private sealed class ExerciseEditModel
     {
         public Guid RowId { get; set; } = Guid.NewGuid();
-        public string Name { get; set; } = "";
+        public string Name { get; set; } = "Exercise";
         public List<SetEditModel> Sets { get; set; } = new() { new SetEditModel() };
 
         public static ExerciseEditModel FromModel(WorkoutExercise e)
-        {
-            return new ExerciseEditModel
+            => new()
             {
                 RowId = Guid.NewGuid(),
                 Name = e.Name,
                 Sets = e.Sets.Select(SetEditModel.FromModel).ToList()
             };
-        }
 
-        public WorkoutExercise ToModel(int exerciseNumber)
+        public WorkoutExercise ToModel(int exNo)
         {
-            var n = (Name ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(n))
-                throw new ValidationException($"Exercise {exerciseNumber}: name is required.");
-
-            var sets = Sets.Select((s, idx) => s.ToModel(exerciseNumber, idx + 1)).ToList();
-            if (sets.Count == 0)
-                throw new ValidationException($"Exercise {exerciseNumber}: add at least one set.");
+            var sets = Sets.Select((s, idx) => s.ToModel(exNo, idx + 1)).ToList();
 
             return new WorkoutExercise
             {
                 Id = Guid.NewGuid(),
-                Name = n,
+                Name = Name,
                 Sets = sets
             };
         }
@@ -306,23 +229,21 @@
         public string WeightText { get; set; } = "0";
 
         public static SetEditModel FromModel(ExerciseSet s)
-        {
-            return new SetEditModel
+            => new()
             {
                 RowId = Guid.NewGuid(),
                 RepsText = s.Reps.ToString(CultureInfo.InvariantCulture),
                 WeightText = s.Weight.ToString(CultureInfo.InvariantCulture)
             };
-        }
 
-        public ExerciseSet ToModel(int exerciseNumber, int setNumber)
+        public ExerciseSet ToModel(int exNo, int setNo)
         {
             if (!int.TryParse((RepsText ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var reps))
-                throw new ValidationException($"Exercise {exerciseNumber}, set {setNumber}: reps must be a whole number.");
+                throw new ValidationException($"Exercise {exNo}, set {setNo}: reps must be a whole number.");
 
-            var wText = (WeightText ?? "").Trim().Replace(',', '.');
-            if (!decimal.TryParse(wText, NumberStyles.Number, CultureInfo.InvariantCulture, out var weight))
-                throw new ValidationException($"Exercise {exerciseNumber}, set {setNumber}: weight must be a number.");
+            var w = (WeightText ?? "").Trim().Replace(',', '.');
+            if (!decimal.TryParse(w, NumberStyles.Number, CultureInfo.InvariantCulture, out var weight))
+                throw new ValidationException($"Exercise {exNo}, set {setNo}: weight must be a number.");
 
             return new ExerciseSet { Reps = reps, Weight = weight };
         }

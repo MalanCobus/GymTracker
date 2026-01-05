@@ -1,4 +1,6 @@
 ﻿@page "/workouts"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @using GymTracker.Models
 @inject GymTracker.Services.WorkoutStore Store
 @inject NavigationManager Nav
@@ -7,44 +9,51 @@
 
 <div style="max-width: 980px; margin: 0 auto; padding: 16px;">
     <h1 style="margin-bottom: 6px;">Workouts</h1>
-    <p style="margin-top: 0; opacity: 0.8;">Distinct by name (all dates).</p>
+    <p style="margin-top: 0; opacity: 0.8;">Saved workouts (no dates). Use “Do workout” to create history.</p>
 
+    @if (!string.IsNullOrWhiteSpace(_info))
+    {
+        <div style="padding: 10px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; margin: 12px 0;">@_info</div>
+    }
     @if (!string.IsNullOrWhiteSpace(_error))
     {
-        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">
-            @_error
-        </div>
+        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">@_error</div>
     }
 
-    @if (WorkoutList.Count == 0)
+    <div style="display:flex; gap: 12px; align-items:end; flex-wrap: wrap;">
+        <label style="min-width: 260px;">
+            New workout name
+            <InputText class="form-control" @bind-Value="_newName" />
+        </label>
+
+        <button class="btn btn-primary" @onclick="CreateAsync">+ Create</button>
+    </div>
+
+    <hr />
+
+    @if (Store.Definitions.Count == 0)
     {
-        <p style="opacity:0.8;">No workouts yet. Create a group first.</p>
+        <p style="opacity:.8;">No workouts yet.</p>
     }
     else
     {
-        <div style="display:grid; gap: 10px; margin-top: 10px;">
-            @foreach (var w in WorkoutList)
+        <div style="display:grid; gap: 10px;">
+            @foreach (var d in Store.Definitions.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
                 <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;">
                     <div style="display:flex; gap: 10px; align-items:center; flex-wrap:wrap;">
-                        <div style="font-weight:700; font-size: 1.05em;">@w.Name</div>
-                        <div style="opacity:.75;">
-                            (@w.InstanceCount instance(s) · last: @w.Latest.WorkoutDate.ToString("yyyy-MM-dd"))
-                        </div>
+                        <div style="font-weight:700; font-size:1.05em;">@d.Name</div>
+                        <div style="opacity:.75;">(@d.Exercises.Count exercise(s))</div>
 
                         <div style="flex:1;"></div>
 
-                        <button class="btn btn-sm btn-success" @onclick="() => DoWorkoutAsync(w.Latest.Id)">
-                            Do workout
-                        </button>
-
-                        <a class="btn btn-sm btn-outline-primary" href="@($"/groups/{w.Latest.Id}")">
-                            Open latest
-                        </a>
+                        <button class="btn btn-sm btn-success" @onclick="() => DoWorkoutAsync(d.Id)">Do workout</button>
+                        <a class="btn btn-sm btn-outline-primary" href="@($"/workouts/{d.Id}")">Edit</a>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(d.Id)">Delete</button>
                     </div>
 
                     <div style="opacity:.85; margin-top: 6px;">
-                        @RenderGroupSummary(w.Latest)
+                        @string.Join(" · ", d.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"))
                     </div>
                 </div>
             }
@@ -54,65 +63,49 @@
 
 @code {
     private string? _error;
-
-    private DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
-
-    private List<WorkoutListItem> WorkoutList { get; set; } = new();
+    private string? _info;
+    private string? _newName;
 
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
-        BuildList();
     }
 
-    private void BuildList()
+    private async Task CreateAsync()
     {
-        WorkoutList = Store.Groups
-            .Where(g => !string.IsNullOrWhiteSpace(g.Name))
-            .GroupBy(g => g.Name.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(grp =>
-            {
-                var latest = grp
-                    .OrderByDescending(x => x.WorkoutDate)
-                    .ThenByDescending(x => x.UpdatedAt)
-                    .First();
-
-                return new WorkoutListItem
-                {
-                    Name = grp.Key,
-                    InstanceCount = grp.Count(),
-                    Latest = latest
-                };
-            })
-            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    private async Task DoWorkoutAsync(Guid groupId)
-    {
-        _error = null;
+        _error = null; _info = null;
 
         try
         {
-            var current = await Store.StartWorkoutAsync(groupId, Today);
-            Nav.NavigateTo($"/current/{current.Id}");
+            var d = await Store.CreateDefinitionAsync(_newName ?? "Workout");
+            _newName = null;
+            Nav.NavigateTo($"/workouts/{d.Id}");
         }
-        catch (Exception ex)
+        catch (Exception ex) { _error = ex.Message; }
+    }
+
+    private async Task DoWorkoutAsync(Guid definitionId)
+    {
+        _error = null; _info = null;
+
+        try
         {
-            _error = ex.Message;
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var session = await Store.StartWorkoutAsync(definitionId, today);
+            Nav.NavigateTo($"/historyItem/{session.Id}");
         }
+        catch (Exception ex) { _error = ex.Message; }
     }
 
-    private static string RenderGroupSummary(WorkoutGroup g)
+    private async Task DeleteAsync(Guid definitionId)
     {
-        if (g.Exercises.Count == 0) return "No exercises yet.";
-        return string.Join(" · ", g.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"));
-    }
+        _error = null; _info = null;
 
-    private sealed class WorkoutListItem
-    {
-        public string Name { get; set; } = "";
-        public int InstanceCount { get; set; }
-        public WorkoutGroup Latest { get; set; } = new();
+        try
+        {
+            await Store.DeleteDefinitionAsync(definitionId);
+            _info = "Deleted.";
+        }
+        catch (Exception ex) { _error = ex.Message; }
     }
 }

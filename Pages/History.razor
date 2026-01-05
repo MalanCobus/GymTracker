@@ -1,0 +1,69 @@
+﻿@page "/history"
+@using GymTracker.Models
+@inject GymTracker.Services.WorkoutStore Store
+@inject NavigationManager Nav
+
+<PageTitle>History</PageTitle>
+
+<div style="max-width: 980px; margin: 0 auto; padding: 16px;">
+    <div style="display:flex; gap:10px; align-items:center;">
+        <h1 style="margin:0;">History</h1>
+        <div style="flex:1;"></div>
+        <a class="btn btn-outline-secondary" href="/workouts">Workouts</a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div style="padding: 10px; border: 1px solid #c33; border-radius: 8px; margin: 12px 0;">@_error</div>
+    }
+
+    @if (Store.Sessions.Count == 0)
+    {
+        <p style="opacity:.8; margin-top:12px;">No history yet. Click “Do workout” on a workout.</p>
+    }
+    else
+    {
+        @foreach (var group in Store.GetHistoryGroupedByDate())
+        {
+            <div style="margin-top: 14px;">
+                <h4 style="margin: 0;">@group.Date.ToString("yyyy-MM-dd")</h4>
+
+                <div style="display:grid; gap:10px; margin-top:10px;">
+                    @foreach (var s in group.Items)
+                    {
+                        <div style="padding: 12px; border: 1px solid rgba(0,0,0,.15); border-radius: 12px;">
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <div style="font-weight:700;">@s.NameSnapshot</div>
+                                <div style="opacity:.75;">(@s.Exercises.Count exercise(s))</div>
+                                <div style="flex:1;"></div>
+
+                                <a class="btn btn-sm btn-outline-primary" href="@($"/historyItem/{s.Id}")">Open</a>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAsync(s.Id)">Delete</button>
+                            </div>
+
+                            <div style="opacity:.85; margin-top:6px;">
+                                @string.Join(" · ", s.Exercises.Select(e => $"{e.Name} ({e.Sets.Count} sets)"))
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Store.EnsureLoadedAsync();
+    }
+
+    private async Task DeleteAsync(Guid sessionId)
+    {
+        _error = null;
+        try { await Store.DeleteSessionAsync(sessionId); }
+        catch (Exception ex) { _error = ex.Message; }
+    }
+}

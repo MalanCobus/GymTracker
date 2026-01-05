@@ -2,13 +2,19 @@
 
 namespace GymTracker.Models
 {
-    public sealed class WorkoutTemplate
+    public sealed class WorkoutSession
     {
         public Guid Id { get; set; } = Guid.NewGuid();
 
+        public Guid DefinitionId { get; set; }
+
         [Required]
         [StringLength(80)]
-        public string Name { get; set; } = "Template";
+        public string NameSnapshot { get; set; } = "Workout";
+
+        public DateOnly WorkoutDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
+
+        public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.UtcNow;
 
         [MinLength(1)]
         public List<WorkoutExercise> Exercises { get; set; } = new();
