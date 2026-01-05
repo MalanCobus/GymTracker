@@ -43,15 +43,22 @@ else
         <div class="accordionx" style="margin-top: 12px;">
             @foreach (var ex in _editing.Exercises)
             {
-                <details open>
+                <details open @key="ex.RowId">
                     <summary>
                         <div class="sumrow">
                             <div class="left">
                                 <div style="font-weight:850;">@ex.Name</div>
                                 <div class="small">@ex.Sets.Count set(s)</div>
                             </div>
+
                             <div class="right">
-                                <button type="button" class="btnx ghost" @onclick="() => AddSet(ex.RowId)">➕ Set</button>
+                                <button type="button"
+                                        class="btnx ghost"
+                                        @onclick="() => AddSet(ex.RowId)"
+                                        @onclick:stopPropagation="true"
+                                        @onclick:preventDefault="true">
+                                    ➕ Set
+                                </button>
                             </div>
                         </div>
                     </summary>
@@ -68,13 +75,13 @@ else
                             </thead>
                             <tbody>
                                 @{
-                                    var i = 0;
+                                    var row = 0;
                                 }
                                 @foreach (var s in ex.Sets)
                                 {
-                                    i++;
+                                    row++;
                                     <tr @key="s.RowId">
-                                        <td class="num">@i</td>
+                                        <td class="num">@row</td>
                                         <td>
                                             <input class="inputx" style="padding:10px 10px;"
                                                    type="text" inputmode="numeric" pattern="[0-9]*"
@@ -86,7 +93,8 @@ else
                                                    @bind="s.WeightText" @bind:event="oninput" />
                                         </td>
                                         <td style="text-align:right;">
-                                            <button type="button" class="btnx danger"
+                                            <button type="button"
+                                                    class="btnx danger"
                                                     style="padding:10px 12px;"
                                                     @onclick="() => RemoveSet(ex.RowId, s.RowId)"
                                                     disabled="@(ex.Sets.Count <= 1)">

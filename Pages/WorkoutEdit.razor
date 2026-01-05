@@ -69,14 +69,26 @@ else
                     <summary>
                         <div class="sumrow">
                             <div class="left">
-                                <div style="font-weight:850;">@(string.IsNullOrWhiteSpace(ex.Name) ? "Exercise" : ex.Name)</div>
+                                <div style="font-weight:850;">
+                                    @(string.IsNullOrWhiteSpace(ex.Name) ? "Exercise" : ex.Name)
+                                </div>
                                 <div class="small">@ex.Sets.Count set(s)</div>
                             </div>
+
                             <div class="right">
-                                <button type="button" class="btnx ghost" @onclick="() => AddSet(ex.RowId)">➕ Set</button>
+                                <button type="button"
+                                        class="btnx ghost"
+                                        @onclick="() => AddSet(ex.RowId)"
+                                        @onclick:stopPropagation="true"
+                                        @onclick:preventDefault="true">
+                                    ➕ Set
+                                </button>
+
                                 <button type="button"
                                         class="btnx danger"
                                         @onclick="() => RemoveExercise(ex.RowId)"
+                                        @onclick:stopPropagation="true"
+                                        @onclick:preventDefault="true"
                                         disabled="@(_editing.Exercises.Count <= 1)">
                                     ✕
                                 </button>
@@ -139,6 +151,7 @@ else
                 </details>
             }
         </div>
+
         <div class="footer-actions">
             <div class="sticky-bar">
                 <div style="flex:1;">
