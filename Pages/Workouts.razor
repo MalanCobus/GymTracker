@@ -105,7 +105,7 @@ else
         try
         {
             var d = await Store.CreateDefinitionAsync("Workout");
-            Nav.NavigateTo($"/workouts/{d.Id}");
+            Nav.NavigateTo($"workouts/{d.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
@@ -117,7 +117,7 @@ else
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(definitionId, today);
-            Nav.NavigateTo($"/current/{session.Id}");
+            Nav.NavigateTo($"current/{session.Id}");
         }
         catch (Exception ex) { _error = ex.Message; }
     }
