@@ -1,17 +1,41 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager Nav
 
 <div class="app-shell">
     <header class="app-header">
         <div class="app-header-inner">
             <div class="brand">GymTracker</div>
+            <div class="subtle">Fast log. Clean history.</div>
         </div>
     </header>
 
     <main class="app-content">
-        @Body
+        <div class="page-anim" @key="_routeKey">
+            @Body
+        </div>
     </main>
 
     <div class="bottom-tabs">
         <NavMenu />
     </div>
 </div>
+
+@code {
+    private Guid _routeKey = Guid.NewGuid();
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _routeKey = Guid.NewGuid();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

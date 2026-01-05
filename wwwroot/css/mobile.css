@@ -419,3 +419,117 @@ hr.sep {
     align-items: center;
     justify-content: space-between;
 }
+
+/* --- Navigation page transition --- */
+@media (prefers-reduced-motion: reduce) {
+    .page-anim {
+        animation: none !important;
+    }
+
+    .collapse-grid {
+        transition: none !important;
+    }
+
+    .chev {
+        transition: none !important;
+    }
+}
+
+.page-anim {
+    animation: pageIn 180ms ease-out both;
+}
+
+@keyframes pageIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Collapsible (smooth height) --- */
+.excard {
+    background: var(--panel);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow2);
+    overflow: clip;
+}
+
+.excard-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+    .excard-head:active {
+        transform: translateY(1px);
+    }
+
+.excard-title {
+    font-weight: 850;
+}
+
+.excard-sub {
+    font-size: .9rem;
+    color: var(--muted);
+}
+
+.excard-left {
+    flex: 1;
+    min-width: 160px;
+}
+
+.excard-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chev {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: var(--panel2);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 88%);
+    transition: transform 180ms ease;
+}
+
+    .chev.open {
+        transform: rotate(180deg);
+    }
+
+.collapse-grid {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 180ms ease;
+}
+
+    .collapse-grid.open {
+        grid-template-rows: 1fr;
+    }
+
+.collapse-inner {
+    overflow: hidden;
+}
+
+.excard-body {
+    padding: 12px 12px 14px;
+    border-top: 1px solid color-mix(in oklab, var(--text), transparent 90%);
+}
+
+/* Optional: subtle divider spacing */
+.stack10 {
+    display: grid;
+    gap: 10px;
+}

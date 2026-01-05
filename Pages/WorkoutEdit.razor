@@ -60,6 +60,7 @@ else
             <button type="button" class="btnx primary" @onclick="OpenAddExerciseModal">➕ Add exercise</button>
         </div>
 
+        @* --- Exercises list (collapsible) --- *@
         @if (_editing.Exercises.Count == 0)
         {
             <div class="cardx">
@@ -69,104 +70,108 @@ else
         }
         else
         {
-            <div class="accordionx" style="margin-top: 10px;">
+            <div class="stack10" style="margin-top: 10px;">
                 @foreach (var ex in _editing.Exercises)
                 {
-                    <details @key="ex.RowId">
-                        <summary>
-                            <div class="sumrow">
-                                <div class="left">
-                                    <div style="font-weight:850;">
-                                        @(string.IsNullOrWhiteSpace(ex.Name) ? "Untitled exercise" : ex.Name)
-                                    </div>
-                                    <div class="small">@ex.Sets.Count set(s)</div>
+                    var isOpen = _openExercises.Contains(ex.RowId);
+
+                    <div class="excard" @key="ex.RowId">
+                        <div class="excard-head" @onclick="() => ToggleExercise(ex.RowId)">
+                            <div class="excard-left">
+                                <div class="excard-title">
+                                    @(string.IsNullOrWhiteSpace(ex.Name) ? "Untitled exercise" : ex.Name)
                                 </div>
+                                <div class="excard-sub">@ex.Sets.Count set(s)</div>
+                            </div>
 
-                                <div class="right">
-                                    <button type="button"
-                                            class="btnx ghost"
-                                            @onclick="() => AddSet(ex.RowId)"
-                                            @onclick:stopPropagation="true"
-                                            @onclick:preventDefault="true">
-                                        ➕ Set
-                                    </button>
+                            <div class="excard-actions">
+                                <button type="button"
+                                        class="btnx ghost"
+                                        @onclick="() => AddSet(ex.RowId)"
+                                        @onclick:stopPropagation="true">
+                                    ➕ Set
+                                </button>
 
-                                    <button type="button"
-                                            class="btnx danger"
-                                            @onclick="() => RemoveExercise(ex.RowId)"
-                                            @onclick:stopPropagation="true"
-                                            @onclick:preventDefault="true">
-                                        ✕
-                                    </button>
+                                <button type="button"
+                                        class="btnx danger"
+                                        @onclick="() => RemoveExercise(ex.RowId)"
+                                        @onclick:stopPropagation="true">
+                                    ✕
+                                </button>
+
+                                <div class="chev @(isOpen ? "open" : "")">⌄</div>
+                            </div>
+                        </div>
+
+                        <div class="collapse-grid @(isOpen ? "open" : "")">
+                            <div class="collapse-inner">
+                                <div class="excard-body">
+                                    <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
+                                    <input class="inputx"
+                                           type="text"
+                                           placeholder="e.g. Bench Press"
+                                           @bind="ex.Name"
+                                           @bind:event="oninput" />
+
+                                    <hr class="sep" />
+
+                                    @if (ex.Sets.Count == 0)
+                                    {
+                                        <div class="cardx" style="box-shadow:none;">
+                                            <div style="font-weight:850;">No sets yet</div>
+                                            <div class="small">Tap “+ Set”. Blank reps/weight can default on save (if you chose that behavior).</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <table class="tablex">
+                                            <thead>
+                                                <tr>
+                                                    <th class="num">#</th>
+                                                    <th>Reps</th>
+                                                    <th>Weight</th>
+                                                    <th style="width: 92px;"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @{
+                                                    var row = 0;
+                                                }
+                                                @foreach (var s in ex.Sets)
+                                                {
+                                                    row++;
+                                                    <tr @key="s.RowId">
+                                                        <td class="num">@row</td>
+                                                        <td>
+                                                            <input class="inputx" style="padding:10px 10px;"
+                                                                   type="text" inputmode="numeric" pattern="[0-9]*"
+                                                                   placeholder="10"
+                                                                   @bind="s.RepsText" @bind:event="oninput" />
+                                                        </td>
+                                                        <td>
+                                                            <input class="inputx" style="padding:10px 10px;"
+                                                                   type="text" inputmode="decimal"
+                                                                   placeholder="0"
+                                                                   @bind="s.WeightText" @bind:event="oninput" />
+                                                        </td>
+                                                        <td style="text-align:right;">
+                                                            <button type="button"
+                                                                    class="btnx danger"
+                                                                    style="padding:10px 12px;"
+                                                                    @onclick="() => RemoveSet(ex.RowId, s.RowId)"
+                                                                    disabled="@(ex.Sets.Count <= 1)">
+                                                                ✕
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    }
                                 </div>
                             </div>
-                        </summary>
-
-                        <div style="margin-top: 10px;">
-                            <label class="small" style="display:block; margin-bottom: 8px;">Exercise name</label>
-                            <input class="inputx"
-                                   type="text"
-                                   placeholder="e.g. Bench Press"
-                                   @bind="ex.Name"
-                                   @bind:event="oninput" />
-
-                            <hr class="sep" />
-
-                            @if (ex.Sets.Count == 0)
-                            {
-                                <div class="cardx" style="box-shadow:none;">
-                                    <div style="font-weight:850;">No sets yet</div>
-                                    <div class="small">Tap “+ Set”. Blank reps/weight defaults to 10 and 0 on save.</div>
-                                </div>
-                            }
-                            else
-                            {
-                                <table class="tablex">
-                                    <thead>
-                                        <tr>
-                                            <th class="num">#</th>
-                                            <th>Reps</th>
-                                            <th>Weight</th>
-                                            <th style="width: 92px;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @{
-                                            var row = 0;
-                                        }
-                                        @foreach (var s in ex.Sets)
-                                        {
-                                            row++;
-                                            <tr @key="s.RowId">
-                                                <td class="num">@row</td>
-                                                <td>
-                                                    <input class="inputx" style="padding:10px 10px;"
-                                                           type="text" inputmode="numeric" pattern="[0-9]*"
-                                                           placeholder="10"
-                                                           @bind="s.RepsText" @bind:event="oninput" />
-                                                </td>
-                                                <td>
-                                                    <input class="inputx" style="padding:10px 10px;"
-                                                           type="text" inputmode="decimal"
-                                                           placeholder="0"
-                                                           @bind="s.WeightText" @bind:event="oninput" />
-                                                </td>
-                                                <td style="text-align:right;">
-                                                    <button type="button"
-                                                            class="btnx danger"
-                                                            style="padding:10px 12px;"
-                                                            @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                            disabled="@(ex.Sets.Count <= 1)">
-                                                        ✕
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
                         </div>
-                    </details>
+                    </div>
                 }
             </div>
         }
@@ -534,5 +539,13 @@ else
                 ? v
                 : throw new ValidationException(err);
         }
+    }
+
+    private readonly HashSet<Guid> _openExercises = new();
+
+    private void ToggleExercise(Guid rowId)
+    {
+        if (!_openExercises.Add(rowId))
+            _openExercises.Remove(rowId);
     }
 }
