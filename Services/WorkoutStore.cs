@@ -357,6 +357,51 @@ public sealed class WorkoutStore
                 .ToList()
         };
 
+    public async Task<AppBackupV1> ExportBackupAsync(CancellationToken ct = default)
+    {
+        await EnsureLoadedAsync(ct);
+
+        return new AppBackupV1
+        {
+            Version = 1,
+            ExportedAt = DateTimeOffset.UtcNow,
+            Definitions = Definitions,
+            Sessions = Sessions
+        };
+    }
+
+    public async Task ImportBackupAsync(AppBackupV1 backup, bool overwrite = true, CancellationToken ct = default)
+    {
+        await EnsureLoadedAsync(ct);
+
+        if (backup is null) throw new InvalidOperationException("Backup is empty.");
+        if (backup.Version != 1) throw new InvalidOperationException($"Unsupported backup version: {backup.Version}");
+
+        if (overwrite)
+        {
+            Definitions = backup.Definitions ?? new List<WorkoutDefinition>();
+            Sessions = backup.Sessions ?? new List<WorkoutSession>();
+        }
+        else
+        {
+            backup.Definitions ??= new List<WorkoutDefinition>();
+            backup.Sessions ??= new List<WorkoutSession>();
+
+            var defById = Definitions.ToDictionary(d => d.Id);
+            foreach (var d in backup.Definitions)
+                defById[d.Id] = d;
+            Definitions = defById.Values.ToList();
+
+            var sesById = Sessions.ToDictionary(s => s.Id);
+            foreach (var s in backup.Sessions)
+                sesById[s.Id] = s;
+            Sessions = sesById.Values.ToList();
+        }
+
+        await SaveAsync(ct);
+    }
+
+
     private sealed class LegacyWorkoutGroupV1
     {
         public Guid Id { get; set; }

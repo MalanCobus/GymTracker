@@ -1,0 +1,88 @@
+﻿@page "/backup"
+@using GymTracker.Models
+@inject GymTracker.Services.WorkoutStore Store
+@inject GymTracker.Services.BackupService BackupService
+
+<PageTitle>Backup</PageTitle>
+
+<div class="cardx">
+    <div style="font-weight:900; font-size:1.15rem;">Backup & Restore</div>
+    <div class="small">Export a JSON file to Files/iCloud. Import it back anytime.</div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_msg))
+{
+    <div class="cardx">
+        <div class="small">@_msg</div>
+    </div>
+}
+
+<div class="cardx">
+    <div class="rowx" style="justify-content: space-between;">
+        <div>
+            <div style="font-weight:850;">Storage persistence</div>
+            <div class="small">Reduces eviction risk (browser may still decide).</div>
+        </div>
+        <button class="btnx" @onclick="RequestPersistAsync">Request</button>
+    </div>
+    <div class="small" style="margin-top:10px;">Status: @_persistStatus</div>
+</div>
+
+<div class="cardx">
+    <div class="rowx" style="justify-content: space-between;">
+        <div>
+            <div style="font-weight:850;">Export</div>
+            <div class="small">One file contains definitions + history.</div>
+        </div>
+        <button class="btnx primary" @onclick="ExportAsync">Export JSON</button>
+    </div>
+</div>
+
+<div class="cardx">
+    <div class="rowx" style="justify-content: space-between;">
+        <div>
+            <div style="font-weight:850;">Import</div>
+            <div class="small">This will overwrite your current data.</div>
+        </div>
+        <button class="btnx danger" @onclick="ImportAsync">Import JSON</button>
+    </div>
+</div>
+
+@code {
+    private string? _msg;
+    private string _persistStatus = "Unknown";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Store.EnsureLoadedAsync();
+        var persisted = await BackupService.IsPersistentStorageAsync();
+        _persistStatus = persisted is null ? "Unknown" : (persisted.Value ? "Persistent" : "Best-effort");
+    }
+
+    private async Task RequestPersistAsync()
+    {
+        _msg = null;
+        var ok = await BackupService.RequestPersistentStorageAsync();
+        _persistStatus = ok ? "Persistent (requested)" : "Best-effort (request denied/not supported)";
+        _msg = "Done.";
+    }
+
+    private async Task ExportAsync()
+    {
+        _msg = null;
+        var backup = await Store.ExportBackupAsync();
+        var name = $"gymtracker-backup-{DateTime.Now:yyyyMMdd-HHmm}.json";
+        await BackupService.ExportAsync(name, backup);
+        _msg = "Export started. Save it to Files/iCloud from the share/download prompt.";
+    }
+
+    private async Task ImportAsync()
+    {
+        _msg = null;
+        var backup = await BackupService.ImportAsync<AppBackupV1>();
+        if (backup is null) { _msg = "Import cancelled."; return; }
+
+        await Store.ImportBackupAsync(backup, overwrite: true);
+        _msg = "Imported. Your app data was replaced with the backup.";
+    }
+}

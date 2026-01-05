@@ -11,5 +11,6 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 
 builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 builder.Services.AddScoped<WorkoutStore>();
+builder.Services.AddScoped<BackupService>();
 
 await builder.Build().RunAsync();
