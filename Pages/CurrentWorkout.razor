@@ -6,6 +6,7 @@
 @inject GymTracker.Services.WorkoutStore Store
 @inject ILogger<CurrentWorkout> Logger
 @inject GymTracker.Services.IToastService Toasts
+@implements IDisposable
 
 <PageTitle>Current workout</PageTitle>
 
@@ -33,10 +34,18 @@ else
         </div>
 
         <div class="pagehead-actions">
-            <button type="button" class="btnx"
+            <button type="button"
+                    class="btnx"
+                    @onclick="OpenTimerModal"
+                    title="Rest timer">
+                ⏱️
+            </button>
+
+            <button type="button"
+                    class="btnx"
                     @onclick="ToggleShowCompleted"
                     title="Show/hide completed sets">
-                @(_showCompleted ? "Hide done" : "Show done")
+                @(_showCompleted ? "Hide done" : "All")
             </button>
 
             <span class="badge-live">LIVE</span>
@@ -53,6 +62,11 @@ else
 
         <div class="rowx" style="margin-top:10px;">
             <span class="pill">Completed: @TotalCompleted / @TotalSets</span>
+
+            @if (_timerRunning)
+            {
+                <span class="pill" title="Timer running">⏱️ @FormatRemaining(_remainingSeconds)</span>
+            }
         </div>
     </div>
 
@@ -174,8 +188,88 @@ else
                 <button type="submit" class="btnx primary">💾 Save</button>
             </div>
         </div>
-
     </EditForm>
+}
+
+@if (_showTimerModal)
+{
+    <div class="modal-backdrop" @onclick="CloseTimerModal">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <div>
+                    <div style="font-weight:900;">Rest timer</div>
+                    <div class="small">Default 3 minutes. Start/Stop as needed.</div>
+                </div>
+
+                <button type="button"
+                        class="btnx danger"
+                        style="padding:10px 12px;"
+                        @onclick="CloseTimerModal"
+                        title="Close (timer keeps running)">
+                    ✕
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="cardx" style="box-shadow:none;">
+                    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+                        <div style="font-weight:900; font-size:1.25rem;">@FormatRemaining(_remainingSeconds)</div>
+                        <div class="pill">@(_timerRunning ? "Running" : "Stopped")</div>
+                    </div>
+
+                    <div class="small" style="margin-top:10px;">Set time</div>
+
+                    <div class="timer-set">
+                        <div class="timer-unit">
+                            <div class="timer-label">MIN</div>
+                            <div class="timer-box">
+                                <button type="button" class="btnx ghost timer-btn" @onclick="DecMinutes" disabled="@_timerRunning" aria-label="Decrease minutes">−</button>
+                                <div class="timer-num">@_setMinutes.ToString("00")</div>
+                                <button type="button" class="btnx ghost timer-btn" @onclick="IncMinutes" disabled="@_timerRunning" aria-label="Increase minutes">+</button>
+                            </div>
+                        </div>
+
+                        <div class="timer-sep">:</div>
+
+                        <div class="timer-unit">
+                            <div class="timer-label">SEC</div>
+                            <div class="timer-box">
+                                <button type="button" class="btnx ghost timer-btn" @onclick="DecSeconds" disabled="@_timerRunning" aria-label="Decrease seconds">−</button>
+                                <div class="timer-num">@_setSeconds.ToString("00")</div>
+                                <button type="button" class="btnx ghost timer-btn" @onclick="IncSeconds" disabled="@_timerRunning" aria-label="Increase seconds">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="small" style="margin-top:10px;">
+                        @if (_timerRunning)
+                        {
+                            <span>Stop to adjust.</span>
+                        }
+                        else
+                        {
+                            <span>Minutes 0–120 · Seconds 0–59</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btnx" @onclick="ResetTimer" disabled="@_timerRunning" title="Resets remaining to selected minutes">
+                    Reset
+                </button>
+
+                @if (_timerRunning)
+                {
+                    <button type="button" class="btnx danger" @onclick="StopTimer">⏹ Stop</button>
+                }
+                else
+                {
+                    <button type="button" class="btnx ok" @onclick="StartTimer">▶️ Start</button>
+                }
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -188,6 +282,16 @@ else
 
     private int TotalSets => _editing?.Exercises.Sum(e => e.Sets.Count) ?? 0;
     private int TotalCompleted => _editing?.Exercises.Sum(e => e.Sets.Count(s => s.IsCompleted)) ?? 0;
+
+    // ---- Timer state ----
+    private bool _showTimerModal;
+    private int _setMinutes = 3;
+    private int _setSeconds = 0;
+    private int _remainingSeconds = 3 * 60;
+
+    private bool _timerRunning;
+    private System.Threading.Timer? _timer;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
@@ -205,6 +309,218 @@ else
         Logger.LogInformation(
             "Loaded current workout. SessionId={SessionId} DefinitionId={DefinitionId} Date={WorkoutDate}",
             s.Id, s.DefinitionId, s.WorkoutDate);
+
+        // Ensure default remaining matches default minutes if user changes code later.
+        _remainingSeconds = Math.Clamp(_setMinutes, 0, 120) * 60 + Math.Clamp(_setSeconds, 0, 59);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        try
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to dispose timer. SessionId={SessionId}", SessionId);
+        }
+    }
+
+    private void OpenTimerModal()
+    {
+        _showTimerModal = true;
+        SyncSetFromRemaining();
+
+        Logger.LogInformation(
+            "Opened timer modal. SessionId={SessionId} TimerRunning={TimerRunning} RemainingSeconds={RemainingSeconds} SetMinutes={SetMinutes} SetSeconds={SetSeconds}",
+            SessionId, _timerRunning, _remainingSeconds, _setMinutes, _setSeconds);
+    }
+
+
+    private void CloseTimerModal()
+    {
+        _showTimerModal = false;
+
+        Logger.LogInformation(
+            "Closed timer modal. SessionId={SessionId} TimerRunning={TimerRunning} RemainingSeconds={RemainingSeconds}",
+            SessionId, _timerRunning, _remainingSeconds);
+    }
+
+    private void ResetTimer()
+    {
+        try
+        {
+            if (_timerRunning)
+            {
+                Logger.LogInformation("ResetTimer ignored because timer is running. SessionId={SessionId}", SessionId);
+                return;
+            }
+
+            _setMinutes = Math.Clamp(_setMinutes, 0, 120);
+            _setSeconds = Math.Clamp(_setSeconds, 0, 59);
+
+            _remainingSeconds = (_setMinutes * 60) + _setSeconds;
+
+            Logger.LogInformation(
+                "Reset timer. SessionId={SessionId} SetMinutes={SetMinutes} SetSeconds={SetSeconds} RemainingSeconds={RemainingSeconds}",
+                SessionId, _setMinutes, _setSeconds, _remainingSeconds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to reset timer. SessionId={SessionId}", SessionId);
+            Toasts.ShowError("Timer reset failed");
+        }
+    }
+
+    private void StartTimer()
+    {
+        try
+        {
+            if (_timerRunning)
+            {
+                Logger.LogInformation("StartTimer ignored because timer already running. SessionId={SessionId}", SessionId);
+                return;
+            }
+
+            _setMinutes = Math.Clamp(_setMinutes, 0, 120);
+            _setSeconds = Math.Clamp(_setSeconds, 0, 59);
+
+            var configuredTotal = (_setMinutes * 60) + _setSeconds;
+
+            if (configuredTotal <= 0 && _remainingSeconds <= 0)
+            {
+                Logger.LogWarning("Timer start blocked due to zero duration. SessionId={SessionId}", SessionId);
+                Toasts.ShowError("Set a time first");
+                return;
+            }
+
+            if (_remainingSeconds <= 0)
+                _remainingSeconds = configuredTotal;
+
+            _timerRunning = true;
+
+            _timer?.Dispose();
+            _timer = new System.Threading.Timer(
+                callback: _ => _ = TickAsync(),
+                state: null,
+                dueTime: TimeSpan.FromSeconds(1),
+                period: TimeSpan.FromSeconds(1));
+
+            Logger.LogInformation(
+                "Timer started. SessionId={SessionId} SetMinutes={SetMinutes} SetSeconds={SetSeconds} RemainingSeconds={RemainingSeconds}",
+                SessionId, _setMinutes, _setSeconds, _remainingSeconds);
+        }
+        catch (Exception ex)
+        {
+            _timerRunning = false;
+            Logger.LogError(ex, "Failed to start timer. SessionId={SessionId}", SessionId);
+            Toasts.ShowError("Timer failed to start");
+        }
+    }
+
+    private void StopTimer()
+    {
+        try
+        {
+            if (!_timerRunning)
+                return;
+
+            _timerRunning = false;
+
+            _timer?.Dispose();
+            _timer = null;
+
+            Logger.LogInformation(
+                "Timer stopped. SessionId={SessionId} RemainingSeconds={RemainingSeconds}",
+                SessionId, _remainingSeconds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to stop timer. SessionId={SessionId}", SessionId);
+            Toasts.ShowError("Timer failed to stop");
+        }
+    }
+
+    private async Task TickAsync()
+    {
+        if (_disposed) return;
+        if (!_timerRunning) return;
+
+        try
+        {
+            if (_remainingSeconds > 0)
+                _remainingSeconds--;
+
+            if (_remainingSeconds <= 0)
+            {
+                _remainingSeconds = 0;
+                StopTimer();
+
+                Logger.LogInformation("Timer completed. SessionId={SessionId}", SessionId);
+                Toasts.ShowSuccess("Timer done");
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Timer tick failed. SessionId={SessionId}", SessionId);
+            // Safe failure: stop timer so it doesn't spam failures.
+            StopTimer();
+        }
+    }
+
+    private static string FormatRemaining(int seconds)
+    {
+        seconds = Math.Max(0, seconds);
+        var mm = seconds / 60;
+        var ss = seconds % 60;
+        return $"{mm:00}:{ss:00}";
+    }
+
+    private void SyncSetFromRemaining()
+    {
+        var seconds = Math.Max(0, _remainingSeconds);
+        _setMinutes = Math.Clamp(seconds / 60, 0, 120);
+        _setSeconds = Math.Clamp(seconds % 60, 0, 59);
+    }
+
+    private void IncMinutes() => AdjustTimerSet(minutesDelta: +1, secondsDelta: 0);
+    private void DecMinutes() => AdjustTimerSet(minutesDelta: -1, secondsDelta: 0);
+    private void IncSeconds() => AdjustTimerSet(minutesDelta: 0, secondsDelta: +5);
+    private void DecSeconds() => AdjustTimerSet(minutesDelta: 0, secondsDelta: -5);
+
+    private void AdjustTimerSet(int minutesDelta, int secondsDelta)
+    {
+        if (_timerRunning)
+        {
+            Logger.LogInformation(
+                "AdjustTimerSet ignored because timer is running. SessionId={SessionId}",
+                SessionId);
+            return;
+        }
+
+        try
+        {
+            var total = (_setMinutes * 60) + _setSeconds;
+            total = Math.Clamp(total + (minutesDelta * 60) + secondsDelta, 0, 120 * 60 + 59);
+
+            _setMinutes = total / 60;
+            _setSeconds = total % 60;
+
+            _remainingSeconds = total;
+
+            Logger.LogInformation(
+                "Adjusted timer set. SessionId={SessionId} SetMinutes={SetMinutes} SetSeconds={SetSeconds} RemainingSeconds={RemainingSeconds}",
+                SessionId, _setMinutes, _setSeconds, _remainingSeconds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to adjust timer set. SessionId={SessionId}", SessionId);
+            Toasts.ShowError("Timer adjust failed");
+        }
     }
 
     private void ToggleShowCompleted()

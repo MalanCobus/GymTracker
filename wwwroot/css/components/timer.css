@@ -1,0 +1,52 @@
+﻿.timer-set {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.timer-unit {
+    min-width: 140px;
+}
+
+.timer-label {
+    font-size: .75rem;
+    letter-spacing: .14em;
+    font-weight: 800;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.timer-box {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 18px;
+    background: color-mix(in oklab, var(--bg), white 6%);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
+}
+
+.timer-num {
+    text-align: center;
+    font-weight: 950;
+    font-size: 1.6rem;
+    letter-spacing: .02em;
+}
+
+.timer-btn {
+    padding: 10px 0;
+    min-width: 44px;
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 950;
+}
+
+.timer-sep {
+    font-weight: 950;
+    font-size: 1.6rem;
+    padding-bottom: 8px;
+    color: var(--muted);
+}
