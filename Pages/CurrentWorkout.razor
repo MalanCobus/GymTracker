@@ -2,7 +2,9 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using GymTracker.Models
+@using Microsoft.Extensions.Logging
 @inject GymTracker.Services.WorkoutStore Store
+@inject ILogger<CurrentWorkout> Logger
 
 <PageTitle>Current workout</PageTitle>
 
@@ -23,34 +25,52 @@
 }
 else
 {
-    <div class="rowx" style="justify-content: space-between;">
-        <div>
-            <div class="title">@_editing.NameSnapshot</div>
-            <div class="kicker">@_editing.WorkoutDate.ToString("yyyy-MM-dd")</div>
+    <div class="pagehead">
+        <div class="pagehead-left">
+            <div class="pagehead-title">@_editing.NameSnapshot</div>
+            <div class="pagehead-sub">@_editing.WorkoutDate.ToString("yyyy-MM-dd")</div>
         </div>
-        <span class="badge-ok">LIVE</span>
+
+        <div class="pagehead-actions">
+            <button type="button" class="btnx"
+                    @onclick="ToggleShowCompleted"
+                    title="Show/hide completed sets">
+                @(_showCompleted ? "Hide done" : "Show done")
+            </button>
+
+            <span class="badge-live">LIVE</span>
+        </div>
     </div>
 
     <div class="cardx">
-        <label class="small" style="display:block; margin-bottom:8px;">Workout name (snapshot)</label>
-        <input class="inputx" @bind="_editing.NameSnapshot" />
+        <div class="rowx" style="justify-content: space-between; align-items:flex-end;">
+            <div style="flex:1;">
+                <label class="small" style="display:block; margin-bottom:8px;">Workout name</label>
+                <input class="inputx" @bind="_editing.NameSnapshot" />
+            </div>
+        </div>
+
+        <div class="rowx" style="margin-top:10px;">
+            <span class="pill">Completed: @TotalCompleted / @TotalSets</span>
+        </div>
     </div>
 
     <EditForm Model="_editing" OnValidSubmit="SaveAsync">
         <DataAnnotationsValidator />
         <ValidationSummary />
 
-        @* --- Exercises list (collapsible) --- *@
         <div class="stack10" style="margin-top: 12px;">
             @foreach (var ex in _editing.Exercises)
             {
                 var isOpen = _openCurrent.Contains(ex.RowId);
+                var completedInEx = ex.Sets.Count(s => s.IsCompleted);
+                var totalInEx = ex.Sets.Count;
 
                 <div class="excard" @key="ex.RowId">
                     <div class="excard-head" @onclick="() => ToggleCurrent(ex.RowId)">
                         <div class="excard-left">
                             <div class="excard-title">@ex.Name</div>
-                            <div class="excard-sub">@ex.Sets.Count set(s)</div>
+                            <div class="excard-sub">@totalInEx set(s) · @completedInEx done</div>
                         </div>
 
                         <div class="excard-actions">
@@ -68,55 +88,82 @@ else
                     <div class="collapse-grid @(isOpen ? "open" : "")">
                         <div class="collapse-inner">
                             <div class="excard-body">
-                                <table class="tablex">
-                                    <thead>
-                                        <tr>
-                                            <th class="num">#</th>
-                                            <th>Reps</th>
-                                            <th>Weight</th>
-                                            <th style="width: 92px;"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @{
-                                            var row = 0;
-                                        }
-                                        @foreach (var s in ex.Sets)
-                                        {
-                                            row++;
-                                            <tr @key="s.RowId">
-                                                <td class="num">@row</td>
-                                                <td>
-                                                    <input class="inputx" style="padding:10px 10px;"
-                                                           type="text" inputmode="numeric" pattern="[0-9]*"
-                                                           placeholder="10"
-                                                           @bind="s.RepsText" @bind:event="oninput" />
-                                                </td>
-                                                <td>
-                                                    <input class="inputx" style="padding:10px 10px;"
-                                                           type="text" inputmode="decimal"
-                                                           placeholder="0"
-                                                           @bind="s.WeightText" @bind:event="oninput" />
-                                                </td>
-                                                <td style="text-align:right;">
-                                                    <button type="button"
-                                                            class="btnx danger"
-                                                            style="padding:10px 12px;"
-                                                            @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                            disabled="@(ex.Sets.Count <= 1)">
-                                                        ✕
-                                                    </button>
-                                                </td>
+                                @{
+                                    var setsToShow = _showCompleted
+                                    ? ex.Sets
+                                    : ex.Sets.Where(s => !s.IsCompleted).ToList();
+                                }
+
+                                @if (setsToShow.Count == 0)
+                                {
+                                    <div class="cardx" style="box-shadow:none;">
+                                        <div style="font-weight:850;">All sets completed</div>
+                                        <div class="small">Turn on “Show done” to see them again.</div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <table class="tablex">
+                                        <thead>
+                                            <tr>
+                                                <th class="num">#</th>
+                                                <th>Reps</th>
+                                                <th>Weight</th>
+                                                <th style="width: 190px;"></th>
                                             </tr>
-                                        }
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            @{
+                                                var row = 0;
+                                            }
+                                            @foreach (var s in setsToShow)
+                                            {
+                                                row++;
+
+                                                <tr @key="s.RowId">
+                                                    <td class="num">@row</td>
+                                                    <td>
+                                                        <input class="inputx" style="padding:10px 10px;"
+                                                               type="text" inputmode="numeric" pattern="[0-9]*"
+                                                               placeholder="10"
+                                                               @bind="s.RepsText" @bind:event="oninput" />
+                                                    </td>
+                                                    <td>
+                                                        <input class="inputx" style="padding:10px 10px;"
+                                                               type="text" inputmode="decimal"
+                                                               placeholder="0"
+                                                               @bind="s.WeightText" @bind:event="oninput" />
+                                                    </td>
+                                                    <td style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+                                                        <button type="button"
+                                                                class="btnx ok"
+                                                                style="padding:10px 12px;"
+                                                                @onclick="() => ToggleSetCompleted(ex.RowId, s.RowId)"
+                                                                title="Mark set done/undo">
+                                                            @(s.IsCompleted ? "↩️ Undo" : "✅ Done")
+                                                        </button>
+
+                                                        <button type="button"
+                                                                class="btnx danger"
+                                                                style="padding:10px 12px;"
+                                                                @onclick="() => RemoveSet(ex.RowId, s.RowId)"
+                                                                disabled="@(ex.Sets.Count <= 1)"
+                                                                title="Remove set">
+                                                            ✕
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
                             </div>
                         </div>
                     </div>
                 </div>
             }
         </div>
+
         <div class="footer-actions">
             <div class="sticky-bar">
                 <div style="flex:1;">
@@ -134,23 +181,61 @@ else
     [Parameter] public Guid SessionId { get; set; }
 
     private string? _error;
-    private string? _info;
-
     private SessionEditModel? _editing;
+
+    private bool _showCompleted;
+
+    private int TotalSets => _editing?.Exercises.Sum(e => e.Sets.Count) ?? 0;
+    private int TotalCompleted => _editing?.Exercises.Sum(e => e.Sets.Count(s => s.IsCompleted)) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
 
         var s = Store.GetSession(SessionId);
-        if (s is null) return;
+        if (s is null)
+        {
+            Logger.LogWarning("Current workout session not found. SessionId={SessionId}", SessionId);
+            return;
+        }
 
         _editing = SessionEditModel.FromModel(s);
+
+        Logger.LogInformation(
+            "Loaded current workout. SessionId={SessionId} DefinitionId={DefinitionId} Date={WorkoutDate}",
+            s.Id, s.DefinitionId, s.WorkoutDate);
+    }
+
+    private void ToggleShowCompleted()
+    {
+        _showCompleted = !_showCompleted;
+
+        Logger.LogInformation(
+            "Toggled show completed sets. SessionId={SessionId} ShowCompleted={ShowCompleted}",
+            SessionId, _showCompleted);
+    }
+
+    private void ToggleSetCompleted(Guid exRowId, Guid setRowId)
+    {
+        if (_editing is null) return;
+
+        var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
+        if (ex is null) return;
+
+        var set = ex.Sets.FirstOrDefault(s => s.RowId == setRowId);
+        if (set is null) return;
+
+        set.IsCompleted = !set.IsCompleted;
+
+        Logger.LogInformation(
+            "Toggled set completion. SessionId={SessionId} Exercise={ExerciseName} SetRowId={SetRowId} IsCompleted={IsCompleted}",
+            SessionId, ex.Name, setRowId, set.IsCompleted);
     }
 
     private void AddSet(Guid exRowId)
     {
         if (_editing is null) return;
+
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
 
@@ -159,18 +244,32 @@ else
         {
             RowId = Guid.NewGuid(),
             RepsText = last?.RepsText ?? "10",
-            WeightText = last?.WeightText ?? "0"
+            WeightText = last?.WeightText ?? "0",
+            IsCompleted = false
         });
+
+        Logger.LogInformation(
+            "Added set. SessionId={SessionId} Exercise={ExerciseName} TotalSets={TotalSets}",
+            SessionId, ex.Name, ex.Sets.Count);
     }
 
     private void RemoveSet(Guid exRowId, Guid setRowId)
     {
         if (_editing is null) return;
+
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
+
         if (ex.Sets.Count <= 1) return;
 
-        ex.Sets.RemoveAll(s => s.RowId == setRowId);
+        var removed = ex.Sets.RemoveAll(s => s.RowId == setRowId) > 0;
+
+        if (removed)
+        {
+            Logger.LogInformation(
+                "Removed set. SessionId={SessionId} Exercise={ExerciseName} RemainingSets={RemainingSets}",
+                SessionId, ex.Name, ex.Sets.Count);
+        }
     }
 
     private async Task SaveAsync()
@@ -182,9 +281,21 @@ else
         {
             var updated = _editing.ToModel();
             await Store.UpdateSessionAsync(updated);
+
+            Logger.LogInformation(
+                "Saved current workout. SessionId={SessionId} Completed={Completed} TotalSets={TotalSets}",
+                SessionId, TotalCompleted, TotalSets);
         }
-        catch (ValidationException vex) { _error = vex.Message; }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (ValidationException vex)
+        {
+            _error = vex.Message;
+            Logger.LogWarning(vex, "Validation failed saving current workout. SessionId={SessionId}", SessionId);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Unexpected error saving current workout. SessionId={SessionId}", SessionId);
+        }
     }
 
     private sealed class SessionEditModel
@@ -255,12 +366,15 @@ else
         public string RepsText { get; set; } = "10";
         public string WeightText { get; set; } = "0";
 
+        public bool IsCompleted { get; set; }
+
         public static SetEditModel FromModel(ExerciseSet s)
             => new()
             {
                 RowId = Guid.NewGuid(),
                 RepsText = s.Reps.ToString(CultureInfo.InvariantCulture),
-                WeightText = s.Weight.ToString(CultureInfo.InvariantCulture)
+                WeightText = s.Weight.ToString(CultureInfo.InvariantCulture),
+                IsCompleted = s.IsCompleted
             };
 
         public ExerciseSet ToModel(int exNo, int setNo)
@@ -272,7 +386,12 @@ else
             if (!decimal.TryParse(w, NumberStyles.Number, CultureInfo.InvariantCulture, out var weight))
                 throw new ValidationException($"Exercise {exNo}, set {setNo}: weight must be a number.");
 
-            return new ExerciseSet { Reps = reps, Weight = weight };
+            return new ExerciseSet
+            {
+                Reps = reps,
+                Weight = weight,
+                IsCompleted = IsCompleted
+            };
         }
     }
 

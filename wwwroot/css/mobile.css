@@ -163,42 +163,65 @@ a {
 }
 
 .btnx {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 11px 14px;
     border-radius: 14px;
-    border: 1px solid color-mix(in oklab, var(--text), transparent 84%);
-    background: var(--panel2);
+    padding: 11px 14px;
+    font-weight: 850;
+    letter-spacing: -0.01em;
+    background: color-mix(in oklab, var(--panel2), white 3%);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
     color: var(--text);
-    font-weight: 700;
-    box-shadow: var(--shadow2);
+    transition: transform 90ms ease, background 140ms ease, border-color 140ms ease;
 }
 
     .btnx:active {
         transform: translateY(1px);
     }
 
+    .btnx:disabled,
+    .btnx[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+    }
+
+    /* Primary: subtle tint instead of loud fill */
     .btnx.primary {
-        background: color-mix(in oklab, var(--primary), black 10%);
-        border-color: color-mix(in oklab, var(--primary), transparent 30%);
+        background: color-mix(in oklab, var(--text), transparent 92%);
+        border-color: color-mix(in oklab, var(--text), transparent 78%);
     }
 
+    /* OK: subtle green tint */
     .btnx.ok {
-        background: color-mix(in oklab, var(--ok), black 8%);
-        border-color: color-mix(in oklab, var(--ok), transparent 30%);
+        background: color-mix(in oklab, var(--ok), transparent 90%);
+        border-color: color-mix(in oklab, var(--ok), transparent 55%);
     }
 
+    /* Danger: subtle red tint */
     .btnx.danger {
-        background: color-mix(in oklab, var(--danger), black 10%);
-        border-color: color-mix(in oklab, var(--danger), transparent 30%);
+        background: color-mix(in oklab, var(--danger), transparent 92%);
+        border-color: color-mix(in oklab, var(--danger), transparent 55%);
     }
 
+    /* Ghost: very light */
     .btnx.ghost {
         background: transparent;
-        box-shadow: none;
+        border-color: color-mix(in oklab, var(--text), transparent 90%);
     }
+
+/* Hover (desktop browsers) */
+@media (hover:hover) {
+    .btnx:hover {
+        background: color-mix(in oklab, var(--panel2), white 6%);
+        border-color: color-mix(in oklab, var(--text), transparent 80%);
+    }
+
+    .btnx.ok:hover {
+        background: color-mix(in oklab, var(--ok), transparent 86%);
+    }
+
+    .btnx.danger:hover {
+        background: color-mix(in oklab, var(--danger), transparent 88%);
+    }
+}
 
 .inputx, .selectx, textarea.inputx {
     width: 100%;
@@ -360,13 +383,14 @@ hr.sep {
     }
 
 .badge-ok {
-    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 10px;
     border-radius: 999px;
-    background: color-mix(in oklab, var(--ok), transparent 84%);
-    color: var(--text);
-    border: 1px solid color-mix(in oklab, var(--ok), transparent 55%);
-    font-size: .86rem;
-    font-weight: 750;
+    font-weight: 850;
+    font-size: .85rem;
+    background: color-mix(in oklab, var(--ok), transparent 88%);
+    border: 1px solid color-mix(in oklab, var(--ok), transparent 60%);
 }
 
 /* --- Page layout helpers (no overlay action bar) --- */
@@ -441,8 +465,6 @@ hr.sep {
     /* keep buttons reachable even when scrolling body */
     position: sticky;
     bottom: 0;
-}
-
 }
 
 /* --- Navigation page transition --- */
@@ -558,3 +580,69 @@ hr.sep {
     display: grid;
     gap: 10px;
 }
+
+.pagehead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px;
+    border-radius: var(--r-lg);
+    background: linear-gradient( 180deg, color-mix(in oklab, var(--panel), white 4%), color-mix(in oklab, var(--panel), black 2%) );
+    border: 1px solid color-mix(in oklab, var(--text), transparent 88%);
+    box-shadow: var(--shadow2);
+}
+
+.pagehead-left {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: left;
+}
+
+
+.pagehead-title {
+    font-weight: 950;
+    letter-spacing: -0.02em;
+    font-size: 1.25rem;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.pagehead-sub {
+    margin-top: 4px;
+    font-size: .92rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pagehead-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.badge-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-weight: 850;
+    font-size: .85rem;
+    background: color-mix(in oklab, var(--ok), transparent 88%);
+    border: 1px solid color-mix(in oklab, var(--ok), transparent 60%);
+}
+
+    .badge-live::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--ok);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok), transparent 80%);
+    }

@@ -281,7 +281,12 @@ public sealed class WorkoutStore
         {
             Id = Guid.NewGuid(),
             Name = e.Name,
-            Sets = e.Sets.Select(s => new ExerciseSet { Reps = s.Reps, Weight = s.Weight }).ToList()
+            Sets = e.Sets.Select(s => new ExerciseSet
+            {
+                Reps = s.Reps,
+                Weight = s.Weight,
+                IsCompleted = false
+            }).ToList()
         }).ToList();
 
     // -----------------------

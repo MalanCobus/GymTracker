@@ -1,14 +1,20 @@
 ﻿@page "/workouts"
 @using GymTracker.Models
+@using Microsoft.Extensions.Logging
 @inject GymTracker.Services.WorkoutStore Store
 @inject NavigationManager Nav
+@inject ILogger<Workouts> Logger
 
 <PageTitle>Workouts</PageTitle>
 
-<div class="rowx" style="justify-content: space-between;">
-    <div>
-        <div class="title">Workouts</div>
-        <div class="kicker">Saved workouts. “Create” opens a draft — only saved when you press Save.</div>
+<div class="pagehead">
+    <div class="pagehead-left">
+        <div class="pagehead-title">Workouts</div>
+    </div>
+
+    <div class="pagehead-actions">
+        <span class="pill">@Store.Definitions.Count workout(s)</span>
+        <button class="btnx primary" @onclick="Create" title="Create a new workout">➕ Create</button>
     </div>
 </div>
 
@@ -24,7 +30,9 @@
     <div class="grid2">
         <input class="inputx" placeholder="Search workout…" @bind="_query" @bind:event="oninput" />
         <div class="rowx" style="justify-content:flex-end;">
-            <button class="btnx primary" @onclick="Create">➕ Create</button>
+            <button class="btnx" type="button" @onclick="ClearSearch" disabled="@string.IsNullOrWhiteSpace(_query)">
+                Clear
+            </button>
         </div>
     </div>
 </div>
@@ -40,6 +48,9 @@ else
 {
     @foreach (var d in Filtered)
     {
+        var exercisesCount = d.Exercises?.Count ?? 0;
+        var setsCount = d.Exercises?.Sum(e => e.Sets?.Count ?? 0) ?? 0;
+
         <div class="cardx">
             <div class="rowx" style="justify-content: space-between;">
                 <div style="min-width: 200px;">
@@ -47,29 +58,31 @@ else
                         @DisplayName(d.Name)
                     </div>
                     <div class="small">
-                        @(d.Exercises.Count == 0
+                        @(exercisesCount == 0
                                         ? "No exercises yet"
                                         : string.Join(" · ", d.Exercises.Select(e => string.IsNullOrWhiteSpace(e.Name) ? "Exercise" : e.Name)))
                     </div>
                 </div>
 
                 <div class="rowx">
-                    <button class="btnx ok"
+                    <button class="btnx"
+                            type="button"
                             @onclick="() => DoWorkoutAsync(d.Id)"
-                            disabled="@(d.Exercises.Count == 0)">
+                            disabled="@(exercisesCount == 0)"
+                            title="Start today’s session">
                         ▶️ Do workout
                     </button>
 
-                    <a class="btnx" href="@($"workouts/{d.Id}")">✏️ Edit</a>
+                    <a class="btnx" href="@($"/workouts/{d.Id}")" title="Edit workout">✏️ Edit</a>
 
                     @if (_pendingDeleteId == d.Id)
                     {
-                        <button class="btnx danger" @onclick="() => ConfirmDeleteAsync(d.Id)">Delete</button>
-                        <button class="btnx" @onclick="CancelDelete">Cancel</button>
+                        <button class="btnx danger" type="button" @onclick="() => ConfirmDeleteAsync(d.Id)">Delete</button>
+                        <button class="btnx" type="button" @onclick="CancelDelete">Cancel</button>
                     }
                     else
                     {
-                        <button class="btnx danger" @onclick="() => AskDelete(d.Id)">🗑️</button>
+                        <button class="btnx danger" type="button" @onclick="() => AskDelete(d.Id)" title="Delete workout">🗑️</button>
                     }
                 </div>
             </div>
@@ -77,8 +90,8 @@ else
             <hr class="sep" />
 
             <div class="rowx">
-                <span class="pill">Exercises: @d.Exercises.Count</span>
-                <span class="pill">Sets: @d.Exercises.Sum(e => e.Sets.Count)</span>
+                <span class="pill">Exercises: @exercisesCount</span>
+                <span class="pill">Sets: @setsCount</span>
             </div>
 
             @if (_pendingDeleteId == d.Id)
@@ -88,7 +101,7 @@ else
                 </div>
             }
 
-            @if (d.Exercises.Count == 0)
+            @if (exercisesCount == 0)
             {
                 <div style="margin-top: 10px;" class="small">
                     Add at least 1 exercise before starting a workout.
@@ -106,6 +119,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await Store.EnsureLoadedAsync();
+        Logger.LogInformation("Loaded workouts page. Workouts={WorkoutCount}", Store.Definitions.Count);
     }
 
     private IReadOnlyList<WorkoutDefinition> Filtered
@@ -121,31 +135,65 @@ else
         => string.IsNullOrWhiteSpace(name) ? "(Unnamed workout)" : name.Trim();
 
     private void Create()
-        => Nav.NavigateTo("workouts/new");
+    {
+        Logger.LogInformation("Navigating to new workout draft.");
+        Nav.NavigateTo("/workouts/new");
+    }
+
+    private void ClearSearch()
+    {
+        _query = "";
+        Logger.LogInformation("Cleared workout search.");
+    }
 
     private async Task DoWorkoutAsync(Guid definitionId)
     {
         _error = null;
+
         try
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(definitionId, today);
-            Nav.NavigateTo($"current/{session.Id}");
+
+            Logger.LogInformation(
+                "Started workout from definition. DefinitionId={DefinitionId} SessionId={SessionId} Date={WorkoutDate}",
+                definitionId, session.Id, session.WorkoutDate);
+
+            Nav.NavigateTo($"/current/{session.Id}");
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to start workout. DefinitionId={DefinitionId}", definitionId);
+        }
     }
 
-    private void AskDelete(Guid id) => _pendingDeleteId = id;
-    private void CancelDelete() => _pendingDeleteId = null;
+    private void AskDelete(Guid id)
+    {
+        _pendingDeleteId = id;
+        Logger.LogInformation("Delete requested (confirmation step). DefinitionId={DefinitionId}", id);
+    }
+
+    private void CancelDelete()
+    {
+        Logger.LogInformation("Delete cancelled. PendingDefinitionId={PendingDefinitionId}", _pendingDeleteId);
+        _pendingDeleteId = null;
+    }
 
     private async Task ConfirmDeleteAsync(Guid id)
     {
         _error = null;
+
         try
         {
             await Store.DeleteDefinitionAsync(id);
+            Logger.LogInformation("Deleted workout definition. DefinitionId={DefinitionId}", id);
             _pendingDeleteId = null;
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to delete workout definition. DefinitionId={DefinitionId}", id);
+        }
     }
 }

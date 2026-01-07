@@ -3,8 +3,10 @@
 @using System.ComponentModel.DataAnnotations
 @using System.Globalization
 @using GymTracker.Models
+@using Microsoft.Extensions.Logging
 @inject GymTracker.Services.WorkoutStore Store
 @inject NavigationManager Nav
+@inject ILogger<WorkoutEdit> Logger
 
 <PageTitle>Edit Workout</PageTitle>
 
@@ -25,22 +27,33 @@
 
 @if (_editing is null)
 {
-    <div class="cardx">
-        <div style="font-weight:850;">Workout not found</div>
-        <div class="small">Go back to Workouts and pick one.</div>
-        <div style="margin-top: 12px;">
-            <a class="btnx" href="workouts">← Back</a>
+    <div class="pagehead">
+        <div class="pagehead-left">
+            <div class="pagehead-title">Workout not found</div>
+            <div class="pagehead-sub">Go back to Workouts and pick one.</div>
         </div>
+
+        <div class="pagehead-actions">
+            <a class="btnx" href="/workouts">← Back</a>
+        </div>
+    </div>
+
+    <div class="cardx">
+        <div style="font-weight:850;">Nothing to edit</div>
+        <div class="small">The workout may have been deleted or the link is invalid.</div>
     </div>
 }
 else
 {
-    <div class="rowx" style="justify-content: space-between;">
-        <div>
-            <div class="title">@(_isNew ? "New workout" : "Edit workout")</div>
-            <div class="kicker">Only saved when you press Save.</div>
+    <div class="pagehead">
+        <div class="pagehead-left">
+            <div class="pagehead-title">@(_isNew ? "New workout" : "Edit workout")</div>
         </div>
-        <a class="btnx" href="workouts">← Back</a>
+
+        <div class="pagehead-actions">
+            <span class="pill">@(_isNew ? "Draft" : "Saved")</span>
+            <a class="btnx" href="/workouts">← Back</a>
+        </div>
     </div>
 
     <EditForm id="editForm" Model="_editing" OnValidSubmit="SaveAsync">
@@ -52,12 +65,14 @@ else
             <InputText class="inputx" placeholder="e.g. Push Day" @bind-Value="_editing.Name" />
         </div>
 
-        <div class="rowx" style="justify-content: space-between; margin-top: 12px;">
-            <div>
-                <div style="font-weight:850;">Exercises</div>
-                <div class="small">Add exercises, then expand to edit sets.</div>
+        <div class="cardx" style="margin-top: 12px;">
+            <div class="rowx" style="justify-content: space-between;">
+                <div>
+                    <div style="font-weight:850;">Exercises</div>
+                    <div class="small">Add exercises, then expand to edit sets.</div>
+                </div>
+                <button type="button" class="btnx primary" @onclick="OpenAddExerciseModal">➕ Add exercise</button>
             </div>
-            <button type="button" class="btnx primary" @onclick="OpenAddExerciseModal">➕ Add exercise</button>
         </div>
 
         @* --- Exercises list (collapsible) --- *@
@@ -95,7 +110,8 @@ else
                                 <button type="button"
                                         class="btnx danger"
                                         @onclick="() => RemoveExercise(ex.RowId)"
-                                        @onclick:stopPropagation="true">
+                                        @onclick:stopPropagation="true"
+                                        title="Remove exercise">
                                     ✕
                                 </button>
 
@@ -119,7 +135,7 @@ else
                                     {
                                         <div class="cardx" style="box-shadow:none;">
                                             <div style="font-weight:850;">No sets yet</div>
-                                            <div class="small">Tap “+ Set”. Blank reps/weight can default on save (if you chose that behavior).</div>
+                                            <div class="small">Tap “+ Set”.</div>
                                         </div>
                                     }
                                     else
@@ -159,7 +175,8 @@ else
                                                                     class="btnx danger"
                                                                     style="padding:10px 12px;"
                                                                     @onclick="() => RemoveSet(ex.RowId, s.RowId)"
-                                                                    disabled="@(ex.Sets.Count <= 1)">
+                                                                    disabled="@(ex.Sets.Count <= 1)"
+                                                                    title="Remove set">
                                                                 ✕
                                                             </button>
                                                         </td>
@@ -180,7 +197,7 @@ else
             <div class="sticky-bar">
                 <div style="flex:1;">
                     <div style="font-weight:850;">Actions</div>
-                    <div class="small">@(_isNew ? "Save first, then you can start the workout." : "Scroll down to save or start today.")</div>
+                    <div class="small">@(_isNew ? "Save first, then you can start the workout." : "Save changes or start today.")</div>
                 </div>
 
                 <button type="button" class="btnx ok" @onclick="DoWorkoutAsync" disabled="@_isNew">▶️ Do workout</button>
@@ -244,7 +261,6 @@ else
     </div>
 }
 
-
 @code {
     [Parameter] public Guid DefinitionId { get; set; } // Guid.Empty when using /workouts/new
 
@@ -276,13 +292,23 @@ else
                 Name = "",
                 Exercises = new List<ExerciseEditModel>()
             };
+
+            Logger.LogInformation("Opened new workout editor (draft).");
             return;
         }
 
         var d = Store.GetDefinition(DefinitionId);
-        if (d is null) return;
+        if (d is null)
+        {
+            Logger.LogWarning("Workout definition not found. DefinitionId={DefinitionId}", DefinitionId);
+            return;
+        }
 
         _editing = DefinitionEditModel.FromModel(d);
+
+        Logger.LogInformation(
+            "Loaded workout definition for edit. DefinitionId={DefinitionId} Name={Name} Exercises={ExerciseCount}",
+            d.Id, d.Name, d.Exercises?.Count ?? 0);
     }
 
     private void OpenAddExerciseModal()
@@ -293,12 +319,16 @@ else
         _newRepsText = "";
         _newWeightText = "";
         _showAddExerciseModal = true;
+
+        Logger.LogInformation("Opened add-exercise modal. DefinitionId={DefinitionId} IsNew={IsNew}", DefinitionId, _isNew);
     }
 
     private void CloseAddExerciseModal()
     {
         _showAddExerciseModal = false;
         _modalError = null;
+
+        Logger.LogInformation("Closed add-exercise modal. DefinitionId={DefinitionId}", DefinitionId);
     }
 
     private void ConfirmAddExercise()
@@ -311,6 +341,7 @@ else
         if (string.IsNullOrWhiteSpace(name))
         {
             _modalError = "Exercise name is required.";
+            Logger.LogWarning("Add-exercise failed validation: empty name. DefinitionId={DefinitionId}", DefinitionId);
             return;
         }
 
@@ -318,6 +349,7 @@ else
         if (setsCount < 1 || setsCount > 20)
         {
             _modalError = "Sets must be between 1 and 20.";
+            Logger.LogWarning("Add-exercise failed validation: invalid sets count. DefinitionId={DefinitionId} SetsCount={SetsCount}", DefinitionId, setsCount);
             return;
         }
 
@@ -325,6 +357,7 @@ else
         if (reps < 0 || reps > 500)
         {
             _modalError = "Default reps must be 0–500.";
+            Logger.LogWarning("Add-exercise failed validation: invalid reps. DefinitionId={DefinitionId} Reps={Reps}", DefinitionId, reps);
             return;
         }
 
@@ -332,6 +365,7 @@ else
         if (weight < 0 || weight > 2000)
         {
             _modalError = "Default weight must be 0–2000.";
+            Logger.LogWarning("Add-exercise failed validation: invalid weight. DefinitionId={DefinitionId} Weight={Weight}", DefinitionId, weight);
             return;
         }
 
@@ -354,17 +388,29 @@ else
         });
 
         _showAddExerciseModal = false;
+
+        Logger.LogInformation(
+            "Added exercise to draft. DefinitionId={DefinitionId} ExerciseName={ExerciseName} Sets={Sets} TotalExercises={TotalExercises}",
+            DefinitionId, name, setsCount, _editing.Exercises.Count);
     }
 
     private void RemoveExercise(Guid rowId)
     {
         if (_editing is null) return;
-        _editing.Exercises.RemoveAll(e => e.RowId == rowId);
+
+        var removed = _editing.Exercises.RemoveAll(e => e.RowId == rowId) > 0;
+        if (removed)
+        {
+            Logger.LogInformation(
+                "Removed exercise from draft. DefinitionId={DefinitionId} ExerciseRowId={ExerciseRowId} RemainingExercises={RemainingExercises}",
+                DefinitionId, rowId, _editing.Exercises.Count);
+        }
     }
 
     private void AddSet(Guid exRowId)
     {
         if (_editing is null) return;
+
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
 
@@ -375,15 +421,28 @@ else
             RepsText = last?.RepsText ?? "",
             WeightText = last?.WeightText ?? ""
         });
+
+        Logger.LogInformation(
+            "Added set to exercise. DefinitionId={DefinitionId} ExerciseName={ExerciseName} TotalSets={TotalSets}",
+            DefinitionId, ex.Name, ex.Sets.Count);
     }
 
     private void RemoveSet(Guid exRowId, Guid setRowId)
     {
         if (_editing is null) return;
+
         var ex = _editing.Exercises.FirstOrDefault(e => e.RowId == exRowId);
         if (ex is null) return;
+
         if (ex.Sets.Count <= 1) return;
-        ex.Sets.RemoveAll(s => s.RowId == setRowId);
+
+        var removed = ex.Sets.RemoveAll(s => s.RowId == setRowId) > 0;
+        if (removed)
+        {
+            Logger.LogInformation(
+                "Removed set from exercise. DefinitionId={DefinitionId} ExerciseName={ExerciseName} RemainingSets={RemainingSets}",
+                DefinitionId, ex.Name, ex.Sets.Count);
+        }
     }
 
     private async Task SaveAsync()
@@ -396,22 +455,33 @@ else
         {
             var def = _editing.ToModel();
 
-            // IMPORTANT: Upsert = creates only here, when user clicks Save
             var saved = await Store.UpsertDefinitionAsync(def);
 
             _info = "Saved.";
+
+            Logger.LogInformation(
+                "Saved workout definition. DefinitionId={DefinitionId} Name={Name} Exercises={ExerciseCount} WasNew={WasNew}",
+                saved.Id, saved.Name, saved.Exercises?.Count ?? 0, _isNew);
 
             if (_isNew)
             {
                 _isNew = false;
                 DefinitionId = saved.Id;
 
-                // Replace URL so refresh/back works cleanly
-                Nav.NavigateTo($"workouts/{saved.Id}", replace: true);
+                Nav.NavigateTo($"/workouts/{saved.Id}", replace: true);
+                Logger.LogInformation("Replaced URL after first save. DefinitionId={DefinitionId}", saved.Id);
             }
         }
-        catch (ValidationException vex) { _error = vex.Message; }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (ValidationException vex)
+        {
+            _error = vex.Message;
+            Logger.LogWarning(vex, "Validation failed saving workout definition. DefinitionId={DefinitionId} IsNew={IsNew}", DefinitionId, _isNew);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Unexpected error saving workout definition. DefinitionId={DefinitionId} IsNew={IsNew}", DefinitionId, _isNew);
+        }
     }
 
     private async Task DoWorkoutAsync()
@@ -422,6 +492,7 @@ else
         if (_isNew)
         {
             _error = "Save the workout first.";
+            Logger.LogWarning("Attempted to start workout from unsaved draft.");
             return;
         }
 
@@ -431,9 +502,18 @@ else
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var session = await Store.StartWorkoutAsync(_editing.DefinitionId, today);
-            Nav.NavigateTo($"current/{session.Id}");
+
+            Logger.LogInformation(
+                "Started workout session. DefinitionId={DefinitionId} SessionId={SessionId} Date={WorkoutDate}",
+                _editing.DefinitionId, session.Id, session.WorkoutDate);
+
+            Nav.NavigateTo($"/current/{session.Id}");
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to start workout session. DefinitionId={DefinitionId}", _editing.DefinitionId);
+        }
     }
 
     private static int ParseOrDefaultInt(string? text, int fallback)
@@ -470,7 +550,7 @@ else
 
             return new WorkoutDefinition
             {
-                Id = DefinitionId, // Guid.Empty is allowed for new (store will assign)
+                Id = DefinitionId,
                 Name = name,
                 Exercises = Exercises.Select((e, idx) => e.ToModel(idx + 1)).ToList()
             };
@@ -525,8 +605,14 @@ else
 
         public ExerciseSet ToModel(int exNo, int setNo)
         {
-            var reps = string.IsNullOrWhiteSpace(RepsText) ? 10 : ParseInt(RepsText, $"Exercise {exNo}, set {setNo}: reps must be a whole number.");
-            var weight = string.IsNullOrWhiteSpace(WeightText) ? 0m : ParseDecimal(WeightText, $"Exercise {exNo}, set {setNo}: weight must be a number.");
+            var reps = string.IsNullOrWhiteSpace(RepsText)
+                ? 10
+                : ParseInt(RepsText, $"Exercise {exNo}, set {setNo}: reps must be a whole number.");
+
+            var weight = string.IsNullOrWhiteSpace(WeightText)
+                ? 0m
+                : ParseDecimal(WeightText, $"Exercise {exNo}, set {setNo}: weight must be a number.");
+
             return new ExerciseSet { Reps = reps, Weight = weight };
         }
 
