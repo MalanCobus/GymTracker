@@ -28,7 +28,7 @@
         </div>
 
         <div class="pagehead-actions">
-            <a class="btnx" href="/workouts">← Back</a>
+            <a class="btnx" href="workouts">← Back</a>
         </div>
     </div>
 
@@ -46,7 +46,7 @@ else
 
         <div class="pagehead-actions">
             <span class="pill">@(_isNew ? "Draft" : "Saved")</span>
-            <a class="btnx" href="/workouts">← Back</a>
+            <a class="btnx" href="workouts">← Back</a>
         </div>
     </div>
 
@@ -462,7 +462,7 @@ else
                 _isNew = false;
                 DefinitionId = saved.Id;
 
-                Nav.NavigateTo($"/workouts/{saved.Id}", replace: true);
+                Nav.NavigateTo($"workouts/{saved.Id}", replace: true);
                 Logger.LogInformation("Replaced URL after first save. DefinitionId={DefinitionId}", saved.Id);
             }
         }
@@ -501,7 +501,7 @@ else
                 "Started workout session. DefinitionId={DefinitionId} SessionId={SessionId} Date={WorkoutDate}",
                 _editing.DefinitionId, session.Id, session.WorkoutDate);
 
-            Nav.NavigateTo($"/current/{session.Id}");
+            Nav.NavigateTo($"current/{session.Id}");
         }
         catch (Exception ex)
         {

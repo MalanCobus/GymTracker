@@ -74,7 +74,7 @@ else
                         ▶️ Do workout
                     </button>
 
-                    <a class="btnx" href="@($"/workouts/{d.Id}")" title="Edit workout">✏️ Edit</a>
+                    <a class="btnx" href="@($"workouts/{d.Id}")" title="Edit workout">✏️ Edit</a>
 
                     @if (_pendingDeleteId == d.Id)
                     {
@@ -138,7 +138,7 @@ else
     private void Create()
     {
         Logger.LogInformation("Navigating to new workout draft.");
-        Nav.NavigateTo("/workouts/new");
+        Nav.NavigateTo("workouts/new");
     }
 
     private void ClearSearch()
@@ -160,7 +160,7 @@ else
                 "Started workout from definition. DefinitionId={DefinitionId} SessionId={SessionId} Date={WorkoutDate}",
                 definitionId, session.Id, session.WorkoutDate);
 
-            Nav.NavigateTo($"/current/{session.Id}");
+            Nav.NavigateTo($"current/{session.Id}");
         }
         catch (Exception ex)
         {
