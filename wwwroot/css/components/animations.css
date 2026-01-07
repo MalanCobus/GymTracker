@@ -1,0 +1,29 @@
+﻿@media (prefers-reduced-motion: reduce) {
+    .page-anim {
+        animation: none !important;
+    }
+
+    .collapse-grid {
+        transition: none !important;
+    }
+
+    .chev {
+        transition: none !important;
+    }
+}
+
+.page-anim {
+    animation: pageIn 180ms ease-out both;
+}
+
+@keyframes pageIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

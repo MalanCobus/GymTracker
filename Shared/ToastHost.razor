@@ -1,0 +1,76 @@
+﻿@using GymTracker.Services
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject IToastService Toasts
+@inject ILogger<ToastHost> Logger
+
+<div style="position:fixed; left:0; right:0; top:20%; transform:translateY(-50%); z-index:999999; display:flex; justify-content:center; pointer-events:none;"
+     aria-live="polite" aria-relevant="additions removals">
+    <div style="width:min(560px, calc(100% - 24px)); display:grid; gap:10px;">
+        @foreach (var t in Toasts.Items)
+        {
+            <div style="@ToastStyle(t.Kind)" @key="t.Id">
+                <div style="font-weight:900;">@t.Message</div>
+
+                <button type="button"
+                        style="pointer-events:auto; border:1px solid rgba(255,255,255,.35); background:transparent; color:white; border-radius:12px; padding:6px 10px; font-weight:900;"
+                        title="Dismiss"
+                        @onclick="() => Dismiss(t.Id)">
+                    ✕
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Toasts.OnChange += HandleChange;
+        Logger.LogInformation("ToastHost initialized.");
+    }
+
+    public void Dispose()
+    {
+        Toasts.OnChange -= HandleChange;
+        Logger.LogInformation("ToastHost disposed.");
+    }
+
+    private void HandleChange()
+    {
+        Logger.LogInformation("ToastHost change received. Count={Count}", Toasts.Items.Count);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void Dismiss(Guid id)
+    {
+        try
+        {
+            Toasts.Dismiss(id);
+            Logger.LogInformation("Toast dismissed. ToastId={ToastId}", id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Toast dismiss failed. ToastId={ToastId}", id);
+        }
+    }
+
+    private static string ToastStyle(ToastKind kind)
+    {
+        var bg = kind switch
+        {
+            ToastKind.Success => "rgba(70, 209, 138, .25)",
+            ToastKind.Error => "rgba(255, 90, 103, .25)",
+            _ => "rgba(255,255,255,.12)"
+        };
+
+        var border = kind switch
+        {
+            ToastKind.Success => "rgba(70, 209, 138, .55)",
+            ToastKind.Error => "rgba(255, 90, 103, .55)",
+            _ => "rgba(255,255,255,.25)"
+        };
+
+        return $"pointer-events:auto; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:16px; border:1px solid {border}; background:{bg}; color:white; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);";
+    }
+}

@@ -1,0 +1,64 @@
+﻿.pagehead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px;
+    border-radius: var(--r-lg);
+    background: linear-gradient( 180deg, color-mix(in oklab, var(--panel), white 4%), color-mix(in oklab, var(--panel), black 2%) );
+    border: 1px solid color-mix(in oklab, var(--text), transparent 88%);
+    box-shadow: var(--shadow2);
+}
+
+.pagehead-left {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: left;
+}
+
+.pagehead-title {
+    font-weight: 950;
+    letter-spacing: -0.02em;
+    font-size: 1.25rem;
+    line-height: 1.15;
+    margin: 0;
+}
+
+.pagehead-sub {
+    margin-top: 4px;
+    font-size: .92rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pagehead-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.badge-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-weight: 850;
+    font-size: .85rem;
+    background: color-mix(in oklab, var(--ok), transparent 88%);
+    border: 1px solid color-mix(in oklab, var(--ok), transparent 60%);
+}
+
+    .badge-live::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--ok);
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok), transparent 80%);
+    }

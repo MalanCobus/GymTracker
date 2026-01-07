@@ -7,6 +7,7 @@
 @inject GymTracker.Services.WorkoutStore Store
 @inject NavigationManager Nav
 @inject ILogger<WorkoutEdit> Logger
+@inject GymTracker.Services.IToastService Toasts
 
 <PageTitle>Edit Workout</PageTitle>
 
@@ -15,13 +16,6 @@
     <div class="cardx" style="border-color: color-mix(in oklab, var(--danger), transparent 40%);">
         <div style="font-weight:850;">Oops</div>
         <div class="small">@_error</div>
-    </div>
-}
-
-@if (!string.IsNullOrWhiteSpace(_info))
-{
-    <div class="cardx" style="border-color: color-mix(in oklab, var(--ok), transparent 40%);">
-        <div style="font-weight:850;">@_info</div>
     </div>
 }
 
@@ -75,7 +69,6 @@ else
             </div>
         </div>
 
-        @* --- Exercises list (collapsible) --- *@
         @if (_editing.Exercises.Count == 0)
         {
             <div class="cardx">
@@ -456,6 +449,7 @@ else
             var def = _editing.ToModel();
 
             var saved = await Store.UpsertDefinitionAsync(def);
+            Toasts.ShowSuccess("Saved");
 
             _info = "Saved.";
 

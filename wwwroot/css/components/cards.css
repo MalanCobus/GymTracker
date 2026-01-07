@@ -1,0 +1,34 @@
+﻿.cardx {
+    background: var(--panel);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
+    border-radius: var(--r-lg);
+    padding: var(--pad);
+    box-shadow: var(--shadow2);
+}
+
+    .cardx + .cardx {
+        margin-top: var(--gap);
+    }
+
+.pill {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--panel2);
+    color: var(--muted);
+    font-size: .86rem;
+    border: 1px solid color-mix(in oklab, var(--text), transparent 88%);
+}
+
+.badge-ok {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-weight: 850;
+    font-size: .85rem;
+    background: color-mix(in oklab, var(--ok), transparent 88%);
+    border: 1px solid color-mix(in oklab, var(--ok), transparent 60%);
+}

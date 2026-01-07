@@ -5,6 +5,7 @@
 @using Microsoft.Extensions.Logging
 @inject GymTracker.Services.WorkoutStore Store
 @inject ILogger<CurrentWorkout> Logger
+@inject GymTracker.Services.IToastService Toasts
 
 <PageTitle>Current workout</PageTitle>
 
@@ -281,6 +282,7 @@ else
         {
             var updated = _editing.ToModel();
             await Store.UpdateSessionAsync(updated);
+            Toasts.ShowSuccess("Saved");
 
             Logger.LogInformation(
                 "Saved current workout. SessionId={SessionId} Completed={Completed} TotalSets={TotalSets}",

@@ -1,0 +1,30 @@
+﻿:root {
+    --bg: #0b0f17;
+    --panel: rgba(255,255,255,.06);
+    --panel2: rgba(255,255,255,.10);
+    --text: rgba(255,255,255,.92);
+    --muted: rgba(255,255,255,.70);
+    --muted2: rgba(255,255,255,.55);
+    --primary: #5aa7ff;
+    --danger: #ff5a67;
+    --ok: #46d18a;
+    --r-lg: 18px;
+    --r-md: 14px;
+    --shadow: 0 10px 26px rgba(0,0,0,.35);
+    --shadow2: 0 6px 16px rgba(0,0,0,.25);
+    --gap: 12px;
+    --pad: 14px;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #f6f7fb;
+        --panel: rgba(0,0,0,.04);
+        --panel2: rgba(0,0,0,.07);
+        --text: rgba(0,0,0,.90);
+        --muted: rgba(0,0,0,.62);
+        --muted2: rgba(0,0,0,.48);
+        --shadow: 0 12px 30px rgba(0,0,0,.10);
+        --shadow2: 0 6px 16px rgba(0,0,0,.08);
+    }
+}

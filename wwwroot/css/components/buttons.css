@@ -1,0 +1,55 @@
+﻿.btnx {
+    border-radius: 14px;
+    padding: 11px 14px;
+    font-weight: 850;
+    letter-spacing: -0.01em;
+    background: color-mix(in oklab, var(--panel2), white 3%);
+    border: 1px solid color-mix(in oklab, var(--text), transparent 86%);
+    color: var(--text);
+    transition: transform 90ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+    .btnx:active {
+        transform: translateY(1px);
+    }
+
+    .btnx:disabled,
+    .btnx[disabled] {
+        opacity: .55;
+        cursor: not-allowed;
+    }
+
+    .btnx.primary {
+        background: color-mix(in oklab, var(--text), transparent 92%);
+        border-color: color-mix(in oklab, var(--text), transparent 78%);
+    }
+
+    .btnx.ok {
+        background: color-mix(in oklab, var(--ok), transparent 90%);
+        border-color: color-mix(in oklab, var(--ok), transparent 55%);
+    }
+
+    .btnx.danger {
+        background: color-mix(in oklab, var(--danger), transparent 92%);
+        border-color: color-mix(in oklab, var(--danger), transparent 55%);
+    }
+
+    .btnx.ghost {
+        background: transparent;
+        border-color: color-mix(in oklab, var(--text), transparent 90%);
+    }
+
+@media (hover:hover) {
+    .btnx:hover {
+        background: color-mix(in oklab, var(--panel2), white 6%);
+        border-color: color-mix(in oklab, var(--text), transparent 80%);
+    }
+
+    .btnx.ok:hover {
+        background: color-mix(in oklab, var(--ok), transparent 86%);
+    }
+
+    .btnx.danger:hover {
+        background: color-mix(in oklab, var(--danger), transparent 88%);
+    }
+}
