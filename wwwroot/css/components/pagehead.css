@@ -8,6 +8,7 @@
     background: linear-gradient( 180deg, color-mix(in oklab, var(--panel), white 4%), color-mix(in oklab, var(--panel), black 2%) );
     border: 1px solid color-mix(in oklab, var(--text), transparent 88%);
     box-shadow: var(--shadow2);
+    margin-bottom: var(--gap);
 }
 
 .pagehead-left {
