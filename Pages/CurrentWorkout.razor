@@ -284,14 +284,15 @@ else
     private int TotalCompleted => _editing?.Exercises.Sum(e => e.Sets.Count(s => s.IsCompleted)) ?? 0;
 
     // ---- Timer state ----
-    private bool _showTimerModal;
+    private bool _timerRunning;
+    private DateTimeOffset? _timerEndUtc;
+    private System.Threading.Timer? _timer;
+    private int _remainingSeconds;
+    private bool _timerDoneNotified;
+    private bool _disposed;
     private int _setMinutes = 3;
     private int _setSeconds = 0;
-    private int _remainingSeconds = 3 * 60;
-
-    private bool _timerRunning;
-    private System.Threading.Timer? _timer;
-    private bool _disposed;
+    private bool _showTimerModal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -310,7 +311,6 @@ else
             "Loaded current workout. SessionId={SessionId} DefinitionId={DefinitionId} Date={WorkoutDate}",
             s.Id, s.DefinitionId, s.WorkoutDate);
 
-        // Ensure default remaining matches default minutes if user changes code later.
         _remainingSeconds = Math.Clamp(_setMinutes, 0, 120) * 60 + Math.Clamp(_setSeconds, 0, 59);
     }
 
@@ -331,7 +331,6 @@ else
     private void OpenTimerModal()
     {
         _showTimerModal = true;
-        SyncSetFromRemaining();
 
         Logger.LogInformation(
             "Opened timer modal. SessionId={SessionId} TimerRunning={TimerRunning} RemainingSeconds={RemainingSeconds} SetMinutes={SetMinutes} SetSeconds={SetSeconds}",
@@ -354,18 +353,17 @@ else
         {
             if (_timerRunning)
             {
-                Logger.LogInformation("ResetTimer ignored because timer is running. SessionId={SessionId}", SessionId);
+                Logger.LogInformation("ResetTimer ignored (timer running). SessionId={SessionId}", SessionId);
                 return;
             }
 
-            _setMinutes = Math.Clamp(_setMinutes, 0, 120);
-            _setSeconds = Math.Clamp(_setSeconds, 0, 59);
-
-            _remainingSeconds = (_setMinutes * 60) + _setSeconds;
+            _remainingSeconds = Math.Clamp(_setMinutes, 0, 120) * 60 + Math.Clamp(_setSeconds, 0, 59);
+            _timerDoneNotified = false;
+            _timerEndUtc = null;
 
             Logger.LogInformation(
-                "Reset timer. SessionId={SessionId} SetMinutes={SetMinutes} SetSeconds={SetSeconds} RemainingSeconds={RemainingSeconds}",
-                SessionId, _setMinutes, _setSeconds, _remainingSeconds);
+                "Timer reset. SessionId={SessionId} RemainingSeconds={RemainingSeconds}",
+                SessionId, _remainingSeconds);
         }
         catch (Exception ex)
         {
@@ -380,26 +378,23 @@ else
         {
             if (_timerRunning)
             {
-                Logger.LogInformation("StartTimer ignored because timer already running. SessionId={SessionId}", SessionId);
+                Logger.LogInformation("StartTimer ignored (already running). SessionId={SessionId}", SessionId);
                 return;
             }
 
-            _setMinutes = Math.Clamp(_setMinutes, 0, 120);
-            _setSeconds = Math.Clamp(_setSeconds, 0, 59);
+            _remainingSeconds = ClampSeconds(_remainingSeconds);
 
-            var configuredTotal = (_setMinutes * 60) + _setSeconds;
-
-            if (configuredTotal <= 0 && _remainingSeconds <= 0)
+            if (_remainingSeconds <= 0)
             {
                 Logger.LogWarning("Timer start blocked due to zero duration. SessionId={SessionId}", SessionId);
                 Toasts.ShowError("Set a time first");
                 return;
             }
 
-            if (_remainingSeconds <= 0)
-                _remainingSeconds = configuredTotal;
-
+            _timerDoneNotified = false;
             _timerRunning = true;
+
+            _timerEndUtc = DateTimeOffset.UtcNow.AddSeconds(_remainingSeconds);
 
             _timer?.Dispose();
             _timer = new System.Threading.Timer(
@@ -409,12 +404,14 @@ else
                 period: TimeSpan.FromSeconds(1));
 
             Logger.LogInformation(
-                "Timer started. SessionId={SessionId} SetMinutes={SetMinutes} SetSeconds={SetSeconds} RemainingSeconds={RemainingSeconds}",
-                SessionId, _setMinutes, _setSeconds, _remainingSeconds);
+                "Timer started. SessionId={SessionId} EndUtc={EndUtc} RemainingSeconds={RemainingSeconds}",
+                SessionId, _timerEndUtc, _remainingSeconds);
         }
         catch (Exception ex)
         {
             _timerRunning = false;
+            _timerEndUtc = null;
+
             Logger.LogError(ex, "Failed to start timer. SessionId={SessionId}", SessionId);
             Toasts.ShowError("Timer failed to start");
         }
@@ -425,52 +422,56 @@ else
         try
         {
             if (!_timerRunning)
+            {
+                Logger.LogInformation("StopTimer ignored (not running). SessionId={SessionId}", SessionId);
                 return;
+            }
 
-            _timerRunning = false;
-
-            _timer?.Dispose();
-            _timer = null;
-
-            Logger.LogInformation(
-                "Timer stopped. SessionId={SessionId} RemainingSeconds={RemainingSeconds}",
-                SessionId, _remainingSeconds);
+            RefreshRemainingFromEndUtc();
+            StopTimerInternal(log: true);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to stop timer. SessionId={SessionId}", SessionId);
-            Toasts.ShowError("Timer failed to stop");
+            Toasts.ShowError("Timer stop failed");
         }
     }
 
     private async Task TickAsync()
     {
-        if (_disposed) return;
-        if (!_timerRunning) return;
-
         try
         {
-            if (_remainingSeconds > 0)
-                _remainingSeconds--;
+            var changed = RefreshRemainingFromEndUtc();
 
-            if (_remainingSeconds <= 0)
-            {
-                _remainingSeconds = 0;
-                StopTimer();
-
-                Logger.LogInformation("Timer completed. SessionId={SessionId}", SessionId);
-                Toasts.ShowSuccess("Timer done");
-            }
-
-            await InvokeAsync(StateHasChanged);
+            if (changed)
+                await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Timer tick failed. SessionId={SessionId}", SessionId);
-            // Safe failure: stop timer so it doesn't spam failures.
-            StopTimer();
+            await InvokeAsync(() => StopTimerInternal(log: true));
         }
     }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (_timerRunning)
+            {
+                var changed = RefreshRemainingFromEndUtc();
+                if (changed)
+                    InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "OnAfterRender timer refresh failed. SessionId={SessionId}", SessionId);
+        }
+
+        return Task.CompletedTask;
+    }
+
 
     private static string FormatRemaining(int seconds)
     {
@@ -478,13 +479,6 @@ else
         var mm = seconds / 60;
         var ss = seconds % 60;
         return $"{mm:00}:{ss:00}";
-    }
-
-    private void SyncSetFromRemaining()
-    {
-        var seconds = Math.Max(0, _remainingSeconds);
-        _setMinutes = Math.Clamp(seconds / 60, 0, 120);
-        _setSeconds = Math.Clamp(seconds % 60, 0, 59);
     }
 
     private void IncMinutes() => AdjustTimerSet(minutesDelta: +1, secondsDelta: 0);
@@ -720,4 +714,59 @@ else
         if (!_openCurrent.Add(rowId))
             _openCurrent.Remove(rowId);
     }
+
+    private static int ClampSeconds(int seconds)
+    => Math.Clamp(seconds, 0, 120 * 60 + 59); // 0..120:59
+
+    private bool RefreshRemainingFromEndUtc()
+    {
+        if (!_timerRunning || _timerEndUtc is null)
+            return false;
+
+        var now = DateTimeOffset.UtcNow;
+        var remaining = (int)Math.Ceiling((_timerEndUtc.Value - now).TotalSeconds);
+        remaining = ClampSeconds(remaining);
+
+        var changed = remaining != _remainingSeconds;
+        _remainingSeconds = remaining;
+
+        if (_remainingSeconds <= 0 && !_timerDoneNotified)
+        {
+            _timerDoneNotified = true;
+
+            Logger.LogInformation(
+                "Timer completed. SessionId={SessionId} EndUtc={EndUtc}",
+                SessionId, _timerEndUtc);
+
+            Toasts.ShowSuccess("Timer done");
+            StopTimerInternal(log: true);
+        }
+
+        return changed;
+    }
+
+    private void StopTimerInternal(bool log)
+    {
+        try
+        {
+            _timerRunning = false;
+            _timerEndUtc = null;
+
+            _timer?.Dispose();
+            _timer = null;
+
+            if (log)
+            {
+                Logger.LogInformation(
+                    "Timer stopped. SessionId={SessionId} RemainingSeconds={RemainingSeconds}",
+                    SessionId, _remainingSeconds);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to stop timer. SessionId={SessionId}", SessionId);
+            Toasts.ShowError("Timer stop failed");
+        }
+    }
+
 }
